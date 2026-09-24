@@ -3,6 +3,7 @@ import { h, icono, api, aviso, modal, confirmar, fechaHora, poner } from './util
 import { estado, esAdmin, puedeEditar, cargarBiblioteca, textoRuta } from './estado.js';
 import { vistaBiblioteca } from './biblioteca.js';
 import { vistaGenerador } from './generador.js';
+import { vistaProcedimiento } from './vista.js';
 
 const principal = document.getElementById('principal');
 
@@ -66,10 +67,10 @@ function pintarCabecera() {
   const nav = document.getElementById('nav');
   const ruta = location.hash || '#/';
   const enlace = (href, texto) =>
-    h('a', { href, class: ruta === href || (href !== '#/' && ruta.startsWith(href)) ? 'activo' : '' }, texto);
+    h('a', { href, class: ruta === href || (href !== '#/' && ruta.startsWith(href)) || (href === '#/' && ruta.startsWith('#/procedimiento')) ? 'activo' : '' }, texto);
   poner(nav, 
     enlace('#/', 'Biblioteca'),
-    puedeEditar() ? enlace('#/generador', 'Generador de procedimientos') : null,
+    puedeEditar() ? enlace('#/generador', 'Crear Procedimiento') : null,
     esAdmin() ? enlace('#/papelera', 'Papelera') : null,
   );
 
@@ -155,14 +156,14 @@ async function vistaPapelera(cont) {
     h(
       'section',
       { class: 'hero hero-chico' },
-      h('div', { class: 'wrap' }, h('h1', {}, 'Papelera'), h('p', {}, 'Procedimientos y versiones eliminados. Puedes restaurarlas a su ubicación original.')),
+      h('div', { class: 'wrap' }, h('h1', {}, 'Papelera'), h('p', {}, 'Procedimientos y versiones eliminados. Puedes restaurarlos a su ubicación original.')),
     ),
     h(
       'div',
       { class: 'wrap' },
       h(
         'div',
-        { class: 'tarjeta' },
+        { class: 'tarjeta tarjeta-sobre-hero' },
         h(
           'div',
           { class: 'tarjeta-cabecera' },
@@ -223,6 +224,8 @@ async function enrutar() {
         return;
       }
       await vistaGenerador(principal, m[1]);
+    } else if ((m = /^#\/procedimiento\/([\w-]+)(?:\/(\d{1,3}\.\d))?$/.exec(ruta))) {
+      await vistaProcedimiento(principal, m[1], m[2]);
     } else if (ruta === '#/papelera') {
       await vistaPapelera(principal);
     } else {

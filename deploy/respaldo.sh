@@ -1,22 +1,36 @@
 #!/usr/bin/env bash
-# Respaldo diario de la wiki: comprime biblioteca, papelera y configuración.
+# Respaldo incremental y cifrado de la wiki con restic.
+# Solo guarda lo nuevo o modificado (deduplicación), por lo que el repositorio
+# ocupa ~1,1 veces el tamaño de los datos aunque se conserven muchas copias.
+#
+# Para respaldar fuera del servidor más adelante basta con cambiar
+# RESTIC_REPOSITORY (p. ej. s3:https://ewr1.vultrobjects.com/mi-bucket/wiki)
+# y definir AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY.
 set -euo pipefail
 
 DATA_DIR="${WIKI_DATA_DIR:-/srv/wiki/data}"
-DESTINO="${WIKI_RESPALDOS:-/var/backups/wiki}"
-DIAS="${WIKI_RESPALDO_DIAS:-30}"
+export RESTIC_REPOSITORY="${RESTIC_REPOSITORY:-/var/backups/wiki-restic}"
+export RESTIC_PASSWORD_FILE="${RESTIC_PASSWORD_FILE:-/etc/wiki/restic.pass}"
 
-mkdir -p "$DESTINO"
+# crear el repositorio la primera vez
+if ! restic cat config >/dev/null 2>&1; then
+  echo "Inicializando repositorio de respaldo en $RESTIC_REPOSITORY"
+  restic init
+fi
+
 incluir=()
 for d in biblioteca papelera config; do
-  [[ -d "$DATA_DIR/$d" ]] && incluir+=("$d")
+  [[ -d "$DATA_DIR/$d" ]] && incluir+=("$DATA_DIR/$d")
 done
 
-archivo="$DESTINO/wiki-$(date +%F).tar.gz"
-tar -czf "$archivo.tmp" -C "$DATA_DIR" "${incluir[@]}"
-mv "$archivo.tmp" "$archivo"
-chmod 600 "$archivo"
+restic backup --tag wiki --host wiki "${incluir[@]}"
 
-# conservar solo los últimos $DIAS días
-find "$DESTINO" -maxdepth 1 -name 'wiki-*.tar.gz' -mtime "+$DIAS" -delete
-echo "Respaldo creado: $archivo ($(du -h "$archivo" | cut -f1))"
+# retención: 7 diarios, 4 semanales y 6 mensuales
+restic forget --tag wiki --host wiki --keep-daily 7 --keep-weekly 4 --keep-monthly 6 --prune
+
+# verificación de integridad los domingos
+if [[ "$(date +%u)" == "7" ]]; then
+  restic check
+fi
+
+restic stats --mode raw-data latest | grep -i 'total size' || true

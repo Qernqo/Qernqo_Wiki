@@ -7,6 +7,9 @@ import { estado, puedeEditar, esAdmin, cargarBiblioteca, categoriasPlanas, texto
 // Filtros persistentes mientras la página esté abierta.
 const filtros = { q: '', categoria: [], tags: new Set(), autor: '', desde: '', hasta: '', orden: 'relevancia' };
 const expandidas = new Set();
+// Panel de tags: cerrado por defecto; se recuerda mientras la página esté abierta.
+let tagsAbierto = false;
+let busquedaTag = '';
 let motor = null;
 let todosLosTags = [];
 let cont = null;
@@ -16,7 +19,7 @@ let cont = null;
 function construirMotor(fichas) {
   motor = new MiniSearch({
     idField: 'id',
-    fields: ['nombre', 'tags', 'texto', 'autor', 'categoria', 'version'],
+    fields: ['nombre', 'tags', 'descripcion', 'texto', 'autor', 'categoria', 'version'],
     extractField: (doc, campo) => {
       if (campo === 'tags') return doc.tags.join(' ');
       if (campo === 'categoria') return doc.categoria.join(' ');
@@ -24,7 +27,7 @@ function construirMotor(fichas) {
     },
     processTerm: (t) => normalizar(t) || null,
     searchOptions: {
-      boost: { nombre: 4, tags: 3, categoria: 1.5, autor: 1.2 },
+      boost: { nombre: 4, tags: 3, descripcion: 1.5, categoria: 1.5, autor: 1.2 },
       prefix: (t) => t.length >= 2,
       fuzzy: (t) => (t.length >= 4 ? 0.25 : false),
       combineWith: 'AND',
@@ -76,14 +79,17 @@ function buscar() {
 }
 
 // Fragmento del texto de los pasos donde aparece la búsqueda.
+// Resumen de la tarjeta: la descripción (o el texto de los pasos) y, si hay
+// búsqueda, el fragmento donde aparece el término.
 function extracto(ficha) {
-  const texto = ficha.texto.replace(/\s+/g, ' ').trim();
-  if (!texto) return '';
-  const normal = normalizar(texto);
+  const plano = (s) => (s || '').replace(/\s+/g, ' ').trim();
+  const fuentes = [plano(ficha.descripcion), plano(ficha.texto)].filter(Boolean);
+  if (!fuentes.length) return '';
   const terminos = normalizar(filtros.q).split(/\s+/).filter((t) => t.length >= 3);
   for (const t of terminos) {
-    const i = normal.indexOf(t);
-    if (i >= 0) {
+    for (const texto of fuentes) {
+      const i = normalizar(texto).indexOf(t);
+      if (i < 0) continue;
       const ini = Math.max(0, i - 60);
       const fin = Math.min(texto.length, i + t.length + 90);
       return h(
@@ -97,6 +103,7 @@ function extracto(ficha) {
       );
     }
   }
+  const texto = fuentes[0];
   return texto.length > 160 ? texto.slice(0, 160) + '…' : texto;
 }
 
@@ -192,7 +199,17 @@ async function historial(ficha) {
       h(
         'td',
         { class: 'acciones-tabla' },
-        h('a', { class: 'btn btn-secundario btn-chico', href: v.url, target: '_blank', rel: 'noopener' }, icono('pdf'), 'Ver PDF'),
+        h(
+          'a',
+          {
+            class: 'btn btn-secundario btn-chico',
+            href: `#/procedimiento/${ficha.id}/${v.version}`,
+            onclick: () => document.querySelector('.modal-fondo .modal-cabecera .btn-icono')?.click(),
+          },
+          icono('ver'),
+          'Ver',
+        ),
+        h('a', { class: 'btn btn-secundario btn-chico', href: v.url, download: '' }, icono('descargar'), 'PDF'),
         esAdmin() && detalle.versiones.length > 1
           ? h(
               'button',
@@ -323,9 +340,12 @@ function pintarArbol() {
 
 function pintarTags() {
   const zona = cont.querySelector('#tags-filtro');
-  const verTodos = zona.dataset.todos === '1';
-  const visibles = verTodos ? todosLosTags : todosLosTags.slice(0, 18);
-  poner(zona, 
+  const q = normalizar(busquedaTag.trim());
+  const visibles = q ? todosLosTags.filter(([t]) => normalizar(t).includes(q)) : todosLosTags;
+  const activos = filtros.tags.size;
+  cont.querySelector('#tags-total').textContent = `${todosLosTags.length}${activos ? ` · ${activos} activo${activos === 1 ? '' : 's'}` : ''}`;
+  poner(
+    zona,
     ...visibles.map(([t, n]) =>
       h(
         'button',
@@ -341,21 +361,15 @@ function pintarTags() {
         h('span', { class: 'chip-num' }, n),
       ),
     ),
-    todosLosTags.length > 18
-      ? h(
-          'button',
-          {
-            class: 'enlace',
-            onclick: () => {
-              zona.dataset.todos = verTodos ? '0' : '1';
-              pintarTags();
-            },
-          },
-          verTodos ? 'Ver menos' : `Ver todos (${todosLosTags.length})`,
-        )
-      : null,
-    todosLosTags.length ? null : h('span', { class: 'texto-suave' }, 'Sin tags todavía'),
+    visibles.length ? null : h('span', { class: 'texto-suave' }, todosLosTags.length ? 'Ningún tag coincide con la búsqueda' : 'Sin tags todavía'),
   );
+}
+
+function alternarTags() {
+  tagsAbierto = !tagsAbierto;
+  cont.querySelector('#tags-toggle').setAttribute('aria-expanded', String(tagsAbierto));
+  cont.querySelector('#tags-panel').hidden = !tagsAbierto;
+  if (tagsAbierto) cont.querySelector('#tags-buscar').focus();
 }
 
 function tarjetaFicha(f) {
@@ -370,7 +384,7 @@ function tarjetaFicha(f) {
       h(
         'h3',
         { class: 'ficha-titulo' },
-        h('a', { href: f.pdf, target: '_blank', rel: 'noopener' }, f.nombre),
+        h('a', { href: `#/procedimiento/${f.id}` }, f.nombre),
         h(
           'button',
           { class: 'version', title: `Historial de versiones (${f.versiones})`, onclick: () => historial(f) },
@@ -410,7 +424,7 @@ function tarjetaFicha(f) {
     h(
       'div',
       { class: 'ficha-acciones' },
-      h('a', { class: 'btn btn-primario btn-chico', href: f.pdf, target: '_blank', rel: 'noopener' }, icono('pdf'), 'Ver PDF'),
+      h('a', { class: 'btn btn-primario btn-chico', href: `#/procedimiento/${f.id}` }, icono('ver'), 'Ver'),
       h('a', { class: 'btn btn-secundario btn-chico', href: f.pdf, download: '' }, icono('descargar'), 'Descargar'),
       puedeEditar() ? h('a', { class: 'btn btn-secundario btn-chico', href: `#/generador/${f.id}` }, icono('lapiz'), 'Editar') : null,
       puedeEditar() ? h('button', { class: 'btn btn-secundario btn-chico', onclick: () => moverFicha(f) }, icono('mover'), 'Mover') : null,
@@ -549,7 +563,36 @@ function pintar() {
               ),
             ),
           ),
-          h('div', { class: 'filtros-tags' }, h('span', { class: 'etiqueta-inline' }, icono('tag'), 'Tags'), h('div', { id: 'tags-filtro', class: 'chips' })),
+          h(
+            'div',
+            { class: 'filtros-tags' },
+            h(
+              'button',
+              { id: 'tags-toggle', type: 'button', class: 'tags-toggle', 'aria-expanded': String(tagsAbierto), 'aria-controls': 'tags-panel', onclick: alternarTags },
+              h('span', { class: 'triangulo', 'aria-hidden': 'true' }),
+              icono('tag'),
+              'Tags',
+              h('span', { id: 'tags-total', class: 'chip-num' }),
+            ),
+            h(
+              'div',
+              { id: 'tags-panel', class: 'tags-panel', hidden: !tagsAbierto },
+              h('input', {
+                id: 'tags-buscar',
+                type: 'search',
+                class: 'campo campo-chico',
+                placeholder: 'Buscar tag…',
+                'aria-label': 'Buscar tag',
+                autocomplete: 'off',
+                value: busquedaTag,
+                oninput: (e) => {
+                  busquedaTag = e.target.value;
+                  pintarTags();
+                },
+              }),
+              h('div', { id: 'tags-filtro', class: 'chips tags-lista' }),
+            ),
+          ),
         ),
         h('div', { class: 'resultados-cabecera' }, h('strong', { id: 'conteo' }), h('div', { id: 'activos', class: 'chips' })),
         h('p', { id: 'aviso-parcial', class: 'aviso-parcial', hidden: true }, 'Ningún procedimiento contiene todas las palabras; se muestran coincidencias parciales.'),

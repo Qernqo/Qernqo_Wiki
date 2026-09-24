@@ -27,14 +27,15 @@ public/            aplicación web (HTML/CSS/JS, sin compilación)
   assets/          logo Saesa y fuente Figtree (OFL)
 server/            API en Node.js sin dependencias externas
   cli.js           definir claves: node server/cli.js clave admin_user
-deploy/            Caddyfile, servicios systemd, respaldo
+deploy/            Caddyfile, servicios systemd, respaldo incremental (restic)
 INSTALACION.md     guía paso a paso para Ubuntu en Vultr
 ```
 
 Datos (fuera del repositorio, por defecto `./data`):
 
 ```
-data/biblioteca/   carpetas portables: categorías → fichas → versiones (PDF + datos + imágenes)
+data/biblioteca/   carpetas portables: categorías → procedimientos → versiones (PDF + datos + imágenes;
+                   las imágenes sin cambios entre versiones son enlaces duros: copiar con rsync -aH)
 data/papelera/     elementos eliminados (restaurables por el admin)
 data/config/       claves (hash scrypt), secreto de sesión y auditoria.log
 ```
