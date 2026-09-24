@@ -1,12 +1,17 @@
 # /etc/systemd/system/wiki-respaldo.service
 [Unit]
-Description=Respaldo de la Wiki Unidad Soporte TI
+Description=Respaldo incremental de la Wiki Unidad Soporte TI (restic)
 
 [Service]
 Type=oneshot
 User=wiki
 Group=wiki
 EnvironmentFile=/etc/wiki/wiki.env
-Environment=WIKI_RESPALDOS=/var/backups/wiki
-Environment=WIKI_RESPALDO_DIAS=30
+Environment=RESTIC_REPOSITORY=/var/backups/wiki-restic
+Environment=RESTIC_PASSWORD_FILE=/etc/wiki/restic.pass
+# caché de restic en /var/cache/wiki-restic (la crea systemd)
+CacheDirectory=wiki-restic
+Environment=RESTIC_CACHE_DIR=/var/cache/wiki-restic
+Nice=10
+IOSchedulingClass=idle
 ExecStart=/srv/wiki/app/deploy/respaldo.sh

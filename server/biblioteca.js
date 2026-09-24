@@ -9,6 +9,8 @@
 //
 // El índice de búsqueda se reconstruye leyendo estas carpetas, por lo que se
 // pueden copiar/mover a otro servidor sin perder nada.
+// Las imágenes que no cambian entre versiones son enlaces duros al mismo
+// archivo: para copiar la biblioteca usar `rsync -aH` (o tar) para conservarlos.
 const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
@@ -272,17 +274,57 @@ function validarDatos(d) {
 
 // ---------- escritura de versiones ----------
 
-function escribirVersion(dirFicha, d, pdf, usuario) {
+const sha256 = (buf) => crypto.createHash('sha256').update(buf).digest('hex');
+
+// Imágenes de una versión anterior indexadas por su hash, para reutilizarlas.
+function imagenesPorHash(dirVersion) {
+  const mapa = new Map();
+  if (!dirVersion) return mapa;
+  const dirImg = path.join(dirVersion, 'img');
+  let archivos = [];
+  try {
+    archivos = fs.readdirSync(dirImg);
+  } catch {
+    return mapa;
+  }
+  for (const nombre of archivos) {
+    const ruta = path.join(dirImg, nombre);
+    try {
+      mapa.set(sha256(fs.readFileSync(ruta)), ruta);
+    } catch {
+      /* archivo ilegible: se ignora */
+    }
+  }
+  return mapa;
+}
+
+// Si la imagen es idéntica a una de la versión anterior se crea un enlace duro
+// (mismo archivo en disco, sin ocupar espacio extra); si no, se escribe.
+function guardarImagen(destino, buf, previas) {
+  const previa = previas.get(sha256(buf));
+  if (previa) {
+    try {
+      fs.linkSync(previa, destino);
+      return;
+    } catch {
+      /* sistema de archivos sin enlaces duros: se copia */
+    }
+  }
+  fs.writeFileSync(destino, buf);
+}
+
+function escribirVersion(dirFicha, d, pdf, usuario, dirAnterior = null) {
   const final = path.join(dirFicha, `v${d.version}`);
   if (fs.existsSync(final)) falla(409, `La versión ${d.version} ya existe`);
   const tmp = path.join(dirFicha, `.tmp-${crypto.randomBytes(4).toString('hex')}`);
   try {
+    const previas = imagenesPorHash(dirAnterior);
     fs.mkdirSync(path.join(tmp, 'img'), { recursive: true });
     const pasos = d.pasos.map((p, i) => ({
       texto: p.texto,
       imagenes: p.imagenes.map((img, k) => {
         const nombre = `img/paso${String(i + 1).padStart(2, '0')}-${k + 1}.${img.ext}`;
-        fs.writeFileSync(path.join(tmp, nombre), img.buf);
+        guardarImagen(path.join(tmp, nombre), img.buf, previas);
         return nombre;
       }),
     }));
@@ -351,7 +393,7 @@ function nuevaVersion(id, { datos, pdf }, usuario) {
   const bufPdf = decodificarPdf(pdf);
   const mayor = versionMayor(f.versiones.map((v) => v.version));
   if (compararVersion(d.version, mayor) <= 0) falla(400, `La versión debe ser mayor que ${mayor}`);
-  const r = escribirVersion(dir, d, bufPdf, usuario);
+  const r = escribirVersion(dir, d, bufPdf, usuario, path.join(dir, `v${f.versionActual}`));
   f.versiones.push(entradaVersion(r));
   f.versionActual = d.version;
   f.actualizado = r.guardado;
