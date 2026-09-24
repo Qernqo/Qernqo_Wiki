@@ -55,7 +55,7 @@ sudo apt update && sudo apt install -y caddy
 sudo useradd --system --home /srv/wiki --shell /usr/sbin/nologin wiki
 
 sudo mkdir -p /srv/wiki /etc/wiki /var/backups/wiki
-sudo git clone https://github.com/qernqo/qernqo_wiki.git /srv/wiki/app
+sudo git clone -b main https://github.com/qernqo/qernqo_wiki.git /srv/wiki/app
 #  (repositorio privado: usa una "deploy key" de solo lectura o un token)
 
 sudo mkdir -p /srv/wiki/data
@@ -168,7 +168,7 @@ sudo systemctl start wiki
 ## 10. Actualizar la wiki
 
 ```bash
-cd /srv/wiki/app && sudo git pull
+cd /srv/wiki/app && sudo git pull origin main
 sudo systemctl restart wiki
 ```
 
