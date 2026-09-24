@@ -60,7 +60,7 @@ async function procesarImagen(blob) {
 
 async function imagenDesdeUrl(url) {
   const r = await fetch(url);
-  if (!r.ok) throw new Error('No se pudo cargar una imagen de la ficha');
+  if (!r.ok) throw new Error('No se pudo cargar una imagen del procedimiento');
   const blob = await r.blob();
   if (blob.type !== 'image/jpeg') return procesarImagen(blob);
   const src = await blobADataUrl(blob);
@@ -308,7 +308,7 @@ function validar() {
   const errores = [];
   const d = f.datos;
   const marcar = (id, ok) => cont.querySelector(id)?.classList.toggle('invalido', !ok);
-  if (!d.nombre.trim()) errores.push('Ingresa el nombre de la ficha');
+  if (!d.nombre.trim()) errores.push('Ingresa el nombre del procedimiento');
   marcar('#g-nombre', !!d.nombre.trim());
   if (!/^\d{4}-\d{2}-\d{2}$/.test(d.fecha)) errores.push('Ingresa la fecha');
   marcar('#g-fecha', /^\d{4}-\d{2}-\d{2}$/.test(d.fecha));
@@ -319,7 +319,7 @@ function validar() {
     errores.push(`La versión debe ser mayor que ${f.versionMayor}`);
   }
   marcar('#g-version', versionOk);
-  if (!d.autor.trim()) errores.push('Ingresa quién elabora la ficha ("Elaborado por")');
+  if (!d.autor.trim()) errores.push('Ingresa quién elabora el procedimiento ("Elaborado por")');
   marcar('#g-autor', !!d.autor.trim());
   if (!f.categoria.length) errores.push('Selecciona una categoría');
   marcar('#g-categoria', !!f.categoria.length);
@@ -389,7 +389,7 @@ async function guardar(boton) {
     if (f.id) await api('POST', `/api/fichas/${f.id}/versiones`, cuerpo);
     else await api('POST', '/api/fichas', { ...cuerpo, categoria: f.categoria });
     estado.cambiosSinGuardar = false;
-    aviso(f.id ? `Versión ${datos.version} guardada` : 'Ficha guardada en la biblioteca');
+    aviso(f.id ? `Versión ${datos.version} guardada` : 'Procedimiento guardado en la biblioteca');
     location.hash = '#/';
   } catch (e) {
     aviso(e.message, 'error');
@@ -520,7 +520,7 @@ export async function vistaGenerador(contenedor, id) {
       h(
         'div',
         { class: 'wrap' },
-        h('h1', {}, id ? 'Editar ficha' : 'Generador de fichas'),
+        h('h1', {}, id ? 'Editar procedimiento' : 'Generador de procedimientos'),
         h(
           'p',
           {},
@@ -546,7 +546,7 @@ export async function vistaGenerador(contenedor, id) {
             { class: 'grilla-form' },
             campo(
               'g-nombre',
-              'Nombre de la ficha *',
+              'Nombre del procedimiento *',
               h('input', { id: 'g-nombre', class: 'campo', maxlength: 150, value: f.datos.nombre, oninput: enlazar('nombre') }),
               null,
               'col-completa',
@@ -586,7 +586,7 @@ export async function vistaGenerador(contenedor, id) {
               'g-link',
               'Link de descarga',
               h('input', { id: 'g-link', type: 'url', class: 'campo', maxlength: 500, value: f.datos.link, placeholder: 'https://…', oninput: enlazar('link', pintarQr) }),
-              'Enlace al recurso externo. Se imprime en la ficha junto a un código QR.',
+              'Enlace al recurso externo. Se imprime en el procedimiento junto a un código QR.',
               'col-completa',
             ),
             h(
@@ -595,7 +595,7 @@ export async function vistaGenerador(contenedor, id) {
               h('span', {}, 'Tags'),
               h('div', { id: 'tags', class: 'campo campo-tags', onclick: () => entradaTag.focus() }, entradaTag),
               h('datalist', { id: 'lista-tags' }, tagsExistentes.map((t) => h('option', { value: t }))),
-              h('small', { class: 'ayuda' }, 'Tags libres para indexar la ficha. Separa con Enter o coma.'),
+              h('small', { class: 'ayuda' }, 'Tags libres para indexar el procedimiento. Separa con Enter o coma.'),
             ),
           ),
         ),

@@ -98,15 +98,20 @@ button {
 .barra-superior nav {
   display: flex;
 }
-.barra-superior nav span,
-.barra-superior-der {
+.barra-superior nav a {
   display: inline-flex;
   align-items: center;
   padding: 0 12px;
+  color: #fff;
+  text-decoration: none;
   opacity: 0.9;
 }
-.barra-superior nav span:first-child {
+.barra-superior nav a:first-child {
   padding-left: 0;
+}
+.barra-superior nav a:hover {
+  opacity: 1;
+  text-decoration: underline;
 }
 .barra-superior .activo {
   background: var(--azul);
@@ -1204,8 +1209,7 @@ button.chip:hover {
     flex-basis: 100%;
     overflow-x: auto;
   }
-  .marca-texto,
-  .barra-superior-der {
+  .marca-texto {
     display: none;
   }
   .grilla-form {

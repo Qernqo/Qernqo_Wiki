@@ -152,7 +152,7 @@ async function moverFicha(ficha) {
     ),
   );
   const destino = await modal({
-    titulo: 'Mover ficha',
+    titulo: 'Mover procedimiento',
     contenido: [h('p', {}, h('strong', {}, ficha.nombre)), h('label', { class: 'etiqueta' }, 'Categoría de destino', select)],
     botones: [
       { texto: 'Cancelar', valor: null },
@@ -160,17 +160,17 @@ async function moverFicha(ficha) {
     ],
   });
   if (!destino) return;
-  ejecutar(() => api('POST', `/api/fichas/${ficha.id}/mover`, { categoria: destino }), 'Ficha movida');
+  ejecutar(() => api('POST', `/api/fichas/${ficha.id}/mover`, { categoria: destino }), 'Procedimiento movido');
 }
 
 async function eliminarFicha(ficha) {
   const ok = await confirmar(
-    'Eliminar ficha',
+    'Eliminar procedimiento',
     `"${ficha.nombre}" y todas sus versiones se enviarán a la papelera.`,
     'Enviar a la papelera',
     true,
   );
-  if (ok) ejecutar(() => api('DELETE', `/api/fichas/${ficha.id}`), 'Ficha enviada a la papelera');
+  if (ok) ejecutar(() => api('DELETE', `/api/fichas/${ficha.id}`), 'Procedimiento enviado a la papelera');
 }
 
 async function historial(ficha) {
@@ -310,7 +310,7 @@ function pintarArbol() {
         },
       },
       icono('libro'),
-      h('span', {}, 'Todas las fichas'),
+      h('span', {}, 'Todos los procedimientos'),
       h('span', { class: 'contador' }, total),
     ),
     estado.biblioteca.arbol.length
@@ -454,7 +454,7 @@ function pintarResultados() {
   );
 
   const n = lista.length;
-  cont.querySelector('#conteo').textContent = `${n} ficha${n === 1 ? '' : 's'}${filtros.q ? ` para "${filtros.q}"` : ''}`;
+  cont.querySelector('#conteo').textContent = `${n} procedimiento${n === 1 ? '' : 's'}${filtros.q ? ` para "${filtros.q}"` : ''}`;
   cont.querySelector('#aviso-parcial').hidden = !parcial;
   const zona = cont.querySelector('#resultados');
   if (!n) {
@@ -462,8 +462,8 @@ function pintarResultados() {
       h(
         'div',
         { class: 'vacio' },
-        h('p', {}, estado.biblioteca.fichas.length ? 'No se encontraron fichas con esos criterios.' : 'La biblioteca aún no tiene fichas.'),
-        puedeEditar() && !estado.biblioteca.fichas.length ? h('a', { class: 'btn btn-primario', href: '#/generador' }, 'Crear la primera ficha') : null,
+        h('p', {}, estado.biblioteca.fichas.length ? 'No se encontraron procedimientos con esos criterios.' : 'La biblioteca aún no tiene procedimientos.'),
+        puedeEditar() && !estado.biblioteca.fichas.length ? h('a', { class: 'btn btn-primario', href: '#/generador' }, 'Crear el primer procedimiento') : null,
       ),
     );
     return;
@@ -487,7 +487,7 @@ function pintar() {
     type: 'search',
     class: 'buscador-input',
     placeholder: 'Buscar por nombre, tag, contenido de los pasos, autor…',
-    'aria-label': 'Buscar fichas',
+    'aria-label': 'Buscar procedimientos',
     autocomplete: 'off',
     oninput: (e) => {
       clearTimeout(espera);
@@ -509,7 +509,7 @@ function pintar() {
       h(
         'div',
         { class: 'wrap' },
-        h('h1', {}, 'Biblioteca de fichas'),
+        h('h1', {}, 'Biblioteca de Procedimientos TI'),
         h('p', {}, 'Manuales y procedimientos de la Unidad de Soporte TI.'),
         h('div', { class: 'buscador' }, icono('buscar'), q),
         h('p', { class: 'hero-ayuda' }, 'Tolera errores de tipeo y tildes. Combina la búsqueda con los filtros de categoría, tags, autor y fecha.'),
@@ -552,7 +552,7 @@ function pintar() {
           h('div', { class: 'filtros-tags' }, h('span', { class: 'etiqueta-inline' }, icono('tag'), 'Tags'), h('div', { id: 'tags-filtro', class: 'chips' })),
         ),
         h('div', { class: 'resultados-cabecera' }, h('strong', { id: 'conteo' }), h('div', { id: 'activos', class: 'chips' })),
-        h('p', { id: 'aviso-parcial', class: 'aviso-parcial', hidden: true }, 'Ninguna ficha contiene todas las palabras; se muestran coincidencias parciales.'),
+        h('p', { id: 'aviso-parcial', class: 'aviso-parcial', hidden: true }, 'Ningún procedimiento contiene todas las palabras; se muestran coincidencias parciales.'),
         h('div', { id: 'resultados', class: 'resultados' }),
       ),
     ),

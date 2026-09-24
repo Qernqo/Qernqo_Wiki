@@ -20,7 +20,7 @@ async function ingresar() {
   const ok = await modal({
     titulo: 'Ingresar',
     contenido: [
-      h('p', { class: 'texto-suave' }, 'El acceso a la biblioteca es libre. Ingresa solo para crear, editar o administrar fichas.'),
+      h('p', { class: 'texto-suave' }, 'El acceso a la biblioteca es libre. Ingresa solo para crear, editar o administrar procedimientos.'),
       h('label', { class: 'etiqueta' }, 'Usuario', usuario),
       h('label', { class: 'etiqueta' }, 'Clave', clave),
       error,
@@ -69,7 +69,7 @@ function pintarCabecera() {
     h('a', { href, class: ruta === href || (href !== '#/' && ruta.startsWith(href)) ? 'activo' : '' }, texto);
   poner(nav, 
     enlace('#/', 'Biblioteca'),
-    puedeEditar() ? enlace('#/generador', 'Generador de fichas') : null,
+    puedeEditar() ? enlace('#/generador', 'Generador de procedimientos') : null,
     esAdmin() ? enlace('#/papelera', 'Papelera') : null,
   );
 
@@ -122,7 +122,7 @@ async function vistaPapelera(cont) {
     h(
       'tr',
       {},
-      h('td', {}, h('span', { class: `insignia ${e.tipo === 'ficha' ? '' : 'insignia-suave'}` }, e.tipo === 'ficha' ? 'Ficha' : 'Versión')),
+      h('td', {}, h('span', { class: `insignia ${e.tipo === 'ficha' ? '' : 'insignia-suave'}` }, e.tipo === 'ficha' ? 'Procedimiento' : 'Versión')),
       h('td', { class: 'fuerte' }, e.nombre),
       h('td', {}, textoRuta(e.origen.slice(0, -1))),
       h('td', {}, `${fechaHora(e.borrado)} · ${e.usuario}`),
@@ -155,7 +155,7 @@ async function vistaPapelera(cont) {
     h(
       'section',
       { class: 'hero hero-chico' },
-      h('div', { class: 'wrap' }, h('h1', {}, 'Papelera'), h('p', {}, 'Fichas y versiones eliminadas. Puedes restaurarlas a su ubicación original.')),
+      h('div', { class: 'wrap' }, h('h1', {}, 'Papelera'), h('p', {}, 'Procedimientos y versiones eliminados. Puedes restaurarlas a su ubicación original.')),
     ),
     h(
       'div',
@@ -216,7 +216,7 @@ async function enrutar() {
           h(
             'div',
             { class: 'wrap vacio' },
-            h('p', {}, 'Debes ingresar como editor o administrador para crear fichas.'),
+            h('p', {}, 'Debes ingresar como editor o administrador para crear procedimientos.'),
             h('button', { class: 'btn btn-primario', onclick: ingresar }, 'Ingresar'),
           ),
         );
@@ -235,7 +235,7 @@ async function enrutar() {
 
 window.addEventListener('hashchange', () => {
   if (estado.cambiosSinGuardar && location.hash !== rutaActual) {
-    if (!window.confirm('Hay cambios sin guardar en la ficha. ¿Salir de todas formas?')) {
+    if (!window.confirm('Hay cambios sin guardar en el procedimiento. ¿Salir de todas formas?')) {
       history.replaceState(null, '', rutaActual);
       return;
     }

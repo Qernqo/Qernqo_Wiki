@@ -201,7 +201,7 @@ function ubicar(id) {
     invalidar(); // la carpeta pudo moverse por fuera de la wiki
     u = indice().porId.get(id);
   }
-  if (!u) falla(404, 'La ficha no existe');
+  if (!u) falla(404, 'El procedimiento no existe');
   return u;
 }
 
@@ -412,7 +412,7 @@ function eliminarVersion(id, version, usuario) {
   const f = leerJson(archivo);
   const i = f.versiones.findIndex((v) => v.version === version);
   if (i < 0) falla(404, 'La versión no existe');
-  if (f.versiones.length === 1) falla(400, 'Es la única versión: elimina la ficha completa');
+  if (f.versiones.length === 1) falla(400, 'Es la única versión: elimina el procedimiento completo');
   const [entrada] = f.versiones.splice(i, 1);
   aPapelera(path.join(dir, `v${version}`), {
     tipo: 'version',
@@ -455,7 +455,7 @@ function restaurar(idPapelera) {
   const meta = leerJson(path.join(dir, '_papelera.json'));
   const contenido = path.join(dir, 'contenido');
   if (meta.tipo === 'ficha') {
-    if (indice().porId.has(meta.fichaId)) falla(409, 'La ficha ya existe en la biblioteca');
+    if (indice().porId.has(meta.fichaId)) falla(409, 'El procedimiento ya existe en la biblioteca');
     const padre = meta.origen.slice(0, -1);
     const dirPadre = rutaSegura(padre);
     fs.mkdirSync(dirPadre, { recursive: true });
@@ -465,13 +465,13 @@ function restaurar(idPapelera) {
     try {
       u = ubicar(meta.fichaId);
     } catch {
-      falla(409, 'La ficha original ya no existe: restaura primero la ficha');
+      falla(409, 'El procedimiento original ya no existe: restáuralo primero');
     }
     const archivo = path.join(u.dir, 'ficha.json');
     const f = leerJson(archivo);
     const destino = path.join(u.dir, `v${meta.version}`);
     if (fs.existsSync(destino) || f.versiones.some((v) => v.version === meta.version)) {
-      falla(409, `La versión ${meta.version} ya existe en la ficha`);
+      falla(409, `La versión ${meta.version} ya existe en el procedimiento`);
     }
     fs.renameSync(contenido, destino);
     f.versiones.push(meta.entrada);

@@ -69,7 +69,7 @@ function leerCuerpo(req) {
     req.on('data', (c) => {
       total += c.length;
       if (total > C.MAX_BODY) {
-        reject(new ErrorApi(413, 'La ficha es demasiado grande'));
+        reject(new ErrorApi(413, 'El procedimiento es demasiado grande'));
         req.destroy();
       } else partes.push(c);
     });

@@ -83,7 +83,7 @@ export async function crearPdf(datos, categoria) {
 
   // ---------- bloque de título ----------
   fuente('bold', 8, COLOR.morado);
-  doc.text('FICHA TÉCNICA', M, y);
+  doc.text('PROCEDIMIENTO', M, y);
   y += 4;
 
   fuente('bold', 20, COLOR.azul);
@@ -261,7 +261,7 @@ export async function crearPdf(datos, categoria) {
 
   doc.setProperties({
     title: datos.nombre,
-    subject: `Ficha técnica · Versión ${datos.version}`,
+    subject: `Procedimiento · Versión ${datos.version}`,
     author: datos.autor,
     keywords: (datos.tags || []).join(', '),
     creator: SITIO,
