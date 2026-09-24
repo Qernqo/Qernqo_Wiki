@@ -3,6 +3,7 @@ import { h, icono, api, aviso, modal, confirmar, fechaHora, poner } from './util
 import { estado, esAdmin, puedeEditar, cargarBiblioteca, textoRuta } from './estado.js';
 import { vistaBiblioteca } from './biblioteca.js';
 import { vistaGenerador } from './generador.js';
+import { vistaProcedimiento } from './vista.js';
 
 const principal = document.getElementById('principal');
 
@@ -66,7 +67,7 @@ function pintarCabecera() {
   const nav = document.getElementById('nav');
   const ruta = location.hash || '#/';
   const enlace = (href, texto) =>
-    h('a', { href, class: ruta === href || (href !== '#/' && ruta.startsWith(href)) ? 'activo' : '' }, texto);
+    h('a', { href, class: ruta === href || (href !== '#/' && ruta.startsWith(href)) || (href === '#/' && ruta.startsWith('#/procedimiento')) ? 'activo' : '' }, texto);
   poner(nav, 
     enlace('#/', 'Biblioteca'),
     puedeEditar() ? enlace('#/generador', 'Crear Procedimiento') : null,
@@ -223,6 +224,8 @@ async function enrutar() {
         return;
       }
       await vistaGenerador(principal, m[1]);
+    } else if ((m = /^#\/procedimiento\/([\w-]+)(?:\/(\d{1,3}\.\d))?$/.exec(ruta))) {
+      await vistaProcedimiento(principal, m[1], m[2]);
     } else if (ruta === '#/papelera') {
       await vistaPapelera(principal);
     } else {

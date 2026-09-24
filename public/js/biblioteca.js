@@ -192,7 +192,17 @@ async function historial(ficha) {
       h(
         'td',
         { class: 'acciones-tabla' },
-        h('a', { class: 'btn btn-secundario btn-chico', href: v.url, target: '_blank', rel: 'noopener' }, icono('pdf'), 'Ver PDF'),
+        h(
+          'a',
+          {
+            class: 'btn btn-secundario btn-chico',
+            href: `#/procedimiento/${ficha.id}/${v.version}`,
+            onclick: () => document.querySelector('.modal-fondo .modal-cabecera .btn-icono')?.click(),
+          },
+          icono('ver'),
+          'Ver',
+        ),
+        h('a', { class: 'btn btn-secundario btn-chico', href: v.url, download: '' }, icono('descargar'), 'PDF'),
         esAdmin() && detalle.versiones.length > 1
           ? h(
               'button',
@@ -370,7 +380,7 @@ function tarjetaFicha(f) {
       h(
         'h3',
         { class: 'ficha-titulo' },
-        h('a', { href: f.pdf, target: '_blank', rel: 'noopener' }, f.nombre),
+        h('a', { href: `#/procedimiento/${f.id}` }, f.nombre),
         h(
           'button',
           { class: 'version', title: `Historial de versiones (${f.versiones})`, onclick: () => historial(f) },
@@ -410,7 +420,7 @@ function tarjetaFicha(f) {
     h(
       'div',
       { class: 'ficha-acciones' },
-      h('a', { class: 'btn btn-primario btn-chico', href: f.pdf, target: '_blank', rel: 'noopener' }, icono('pdf'), 'Ver PDF'),
+      h('a', { class: 'btn btn-primario btn-chico', href: `#/procedimiento/${f.id}` }, icono('ver'), 'Ver'),
       h('a', { class: 'btn btn-secundario btn-chico', href: f.pdf, download: '' }, icono('descargar'), 'Descargar'),
       puedeEditar() ? h('a', { class: 'btn btn-secundario btn-chico', href: `#/generador/${f.id}` }, icono('lapiz'), 'Editar') : null,
       puedeEditar() ? h('button', { class: 'btn btn-secundario btn-chico', onclick: () => moverFicha(f) }, icono('mover'), 'Mover') : null,

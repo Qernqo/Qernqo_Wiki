@@ -40,6 +40,8 @@ const ICONOS = {
   libro: '<path d="M4 5a2 2 0 0 1 2-2h14v16H6a2 2 0 0 0-2 2z"/><path d="M4 19V5"/>',
   ficha: '<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/>',
   salir: '<path d="M15 4h4v16h-4M10 16l4-4-4-4M14 12H4"/>',
+  ver: '<path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
+  atras: '<path d="M19 12H5m5-5-5 5 5 5"/>',
   tag: '<path d="M3 12V4h8l10 10-8 8z"/><circle cx="7.5" cy="8.5" r="1.3"/>',
 };
 
@@ -238,4 +240,10 @@ export function blobADataUrl(blob) {
 // (replaceChildren nativo los convertiría en el texto "null").
 export function poner(el, ...hijos) {
   el.replaceChildren(...hijos.flat(Infinity).filter((x) => x != null && x !== false));
+}
+
+// URL de una imagen guardada en una versión (ruta relativa como "img/paso01-1.jpg").
+export function urlImagen(base, ruta) {
+  if (/^(blob:|data:|https?:)/.test(ruta)) return ruta;
+  return base + ruta.split('/').map(encodeURIComponent).join('/');
 }

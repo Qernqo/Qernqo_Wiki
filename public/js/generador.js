@@ -13,6 +13,7 @@ import {
   siguienteVersion,
   blobADataUrl,
   poner,
+  urlImagen,
 } from './util.js';
 import { estado, categoriasPlanas, cargarBiblioteca, textoRuta } from './estado.js';
 import { crearPdf } from './pdf.js';
@@ -386,11 +387,10 @@ async function guardar(boton) {
       datos: { ...datos, pasos: datos.pasos.map((p) => ({ texto: p.texto, imagenes: p.imagenes.map((i) => i.src) })) },
       pdf,
     };
-    if (f.id) await api('POST', `/api/fichas/${f.id}/versiones`, cuerpo);
-    else await api('POST', '/api/fichas', { ...cuerpo, categoria: f.categoria });
+    const r = f.id ? await api('POST', `/api/fichas/${f.id}/versiones`, cuerpo) : await api('POST', '/api/fichas', { ...cuerpo, categoria: f.categoria });
     estado.cambiosSinGuardar = false;
     aviso(f.id ? `Versión ${datos.version} guardada` : 'Procedimiento guardado en la biblioteca');
-    location.hash = '#/';
+    location.hash = `#/procedimiento/${r.id}`;
   } catch (e) {
     aviso(e.message, 'error');
   } finally {
@@ -454,7 +454,7 @@ export async function vistaGenerador(contenedor, id) {
       d.pasos.map(async (p) => ({
         id: nuevoId(),
         texto: p.texto || '',
-        imagenes: await Promise.all(p.imagenes.map((ruta) => imagenDesdeUrl(detalle.base + ruta.split('/').map(encodeURIComponent).join('/')))),
+        imagenes: await Promise.all(p.imagenes.map((ruta) => imagenDesdeUrl(urlImagen(detalle.base, ruta)))),
       })),
     );
   }
