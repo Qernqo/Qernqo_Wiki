@@ -185,6 +185,7 @@ function cargarResumen(dir, segmentos) {
       link: d.link || '',
       tags: d.tags || [],
       categoria: segmentos.slice(0, -1),
+      descripcion: d.descripcion || '',
       texto: (d.pasos || []).map((p) => p.texto || '').join('\n'),
       pasos: (d.pasos || []).length,
       pdf: urlArchivo([...segmentos, `v${f.versionActual}`, d.pdf]),
@@ -251,6 +252,7 @@ function validarDatos(d) {
   if (!parseVersion(version)) falla(400, 'Versión inválida: usa el formato X.Y (Y entre 0 y 9)');
   const autor = texto(d.autor, 80, '"Elaborado por"');
   const link = texto(d.link, 500, 'el link', false);
+  const descripcion = texto(d.descripcion, 5000, 'la descripción', false);
   if (link && !/^https?:\/\/[^\s]+$/i.test(link)) falla(400, 'El link debe comenzar con http:// o https://');
 
   if (d.tags != null && !Array.isArray(d.tags)) falla(400, 'Tags inválidos');
@@ -269,7 +271,7 @@ function validarDatos(d) {
     if (!t && !imgs.length) falla(400, `El paso ${n} está vacío`);
     return { texto: t, imagenes: imgs.map((u) => decodificarImagen(u, n)) };
   });
-  return { nombre, fecha, version, autor, link, tags, pasos };
+  return { nombre, fecha, version, autor, link, descripcion, tags, pasos };
 }
 
 // ---------- escritura de versiones ----------
@@ -336,6 +338,7 @@ function escribirVersion(dirFicha, d, pdf, usuario, dirAnterior = null) {
       version: d.version,
       autor: d.autor,
       link: d.link,
+      descripcion: d.descripcion,
       tags: d.tags,
       pasos,
       pdf: archivoPdf,

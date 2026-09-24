@@ -16,7 +16,7 @@ let cont = null;
 function construirMotor(fichas) {
   motor = new MiniSearch({
     idField: 'id',
-    fields: ['nombre', 'tags', 'texto', 'autor', 'categoria', 'version'],
+    fields: ['nombre', 'tags', 'descripcion', 'texto', 'autor', 'categoria', 'version'],
     extractField: (doc, campo) => {
       if (campo === 'tags') return doc.tags.join(' ');
       if (campo === 'categoria') return doc.categoria.join(' ');
@@ -24,7 +24,7 @@ function construirMotor(fichas) {
     },
     processTerm: (t) => normalizar(t) || null,
     searchOptions: {
-      boost: { nombre: 4, tags: 3, categoria: 1.5, autor: 1.2 },
+      boost: { nombre: 4, tags: 3, descripcion: 1.5, categoria: 1.5, autor: 1.2 },
       prefix: (t) => t.length >= 2,
       fuzzy: (t) => (t.length >= 4 ? 0.25 : false),
       combineWith: 'AND',
@@ -76,14 +76,17 @@ function buscar() {
 }
 
 // Fragmento del texto de los pasos donde aparece la búsqueda.
+// Resumen de la tarjeta: la descripción (o el texto de los pasos) y, si hay
+// búsqueda, el fragmento donde aparece el término.
 function extracto(ficha) {
-  const texto = ficha.texto.replace(/\s+/g, ' ').trim();
-  if (!texto) return '';
-  const normal = normalizar(texto);
+  const plano = (s) => (s || '').replace(/\s+/g, ' ').trim();
+  const fuentes = [plano(ficha.descripcion), plano(ficha.texto)].filter(Boolean);
+  if (!fuentes.length) return '';
   const terminos = normalizar(filtros.q).split(/\s+/).filter((t) => t.length >= 3);
   for (const t of terminos) {
-    const i = normal.indexOf(t);
-    if (i >= 0) {
+    for (const texto of fuentes) {
+      const i = normalizar(texto).indexOf(t);
+      if (i < 0) continue;
       const ini = Math.max(0, i - 60);
       const fin = Math.min(texto.length, i + t.length + 90);
       return h(
@@ -97,6 +100,7 @@ function extracto(ficha) {
       );
     }
   }
+  const texto = fuentes[0];
   return texto.length > 160 ? texto.slice(0, 160) + '…' : texto;
 }
 

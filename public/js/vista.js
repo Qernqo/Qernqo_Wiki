@@ -123,6 +123,7 @@ export async function vistaProcedimiento(cont, id, version) {
               ),
             )
           : null,
+        d.descripcion ? [h('h2', { class: 'proc-titulo' }, 'Descripción'), h('p', { class: 'proc-texto' }, d.descripcion)] : null,
         h('h2', { class: 'proc-titulo' }, 'Procedimiento'),
         h('ol', { class: 'proc-pasos' }, pasos),
         h(

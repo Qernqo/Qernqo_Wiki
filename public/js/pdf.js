@@ -161,13 +161,30 @@ export async function crearPdf(datos, categoria) {
     y += alto + 8;
   }
 
+  const tituloSeccion = (texto) => {
+    asegurar(20);
+    fuente('bold', 13, COLOR.azul);
+    doc.text(texto, M, y + 4);
+    doc.setFillColor(...COLOR.lima);
+    doc.rect(M, y + 6.5, 16, 1.2, 'F');
+    y += 14;
+  };
+
+  // ---------- descripción (opcional) ----------
+  if (datos.descripcion) {
+    tituloSeccion('Descripción');
+    fuente('normal', 10.5);
+    const lhd = altoLinea(10.5, 1.45);
+    for (const linea of doc.splitTextToSize(datos.descripcion, ANCHO)) {
+      if (y + lhd > FONDO) nuevaPagina();
+      doc.text(linea, M, y + 3.8);
+      y += lhd;
+    }
+    y += 8;
+  }
+
   // ---------- pasos ----------
-  asegurar(20);
-  fuente('bold', 13, COLOR.azul);
-  doc.text('Procedimiento', M, y + 4);
-  doc.setFillColor(...COLOR.lima);
-  doc.rect(M, y + 6.5, 16, 1.2, 'F');
-  y += 14;
+  tituloSeccion('Procedimiento');
 
   const xTexto = M + 10;
   const anchoTexto = ANCHO - 10;

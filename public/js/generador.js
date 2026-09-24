@@ -341,6 +341,7 @@ function datosParaPdf() {
     version: d.version.trim(),
     autor: d.autor.trim(),
     link: d.link.trim(),
+    descripcion: d.descripcion.trim(),
     tags: d.tags,
     pasos: f.pasos.map((p) => ({ texto: p.texto.trim(), imagenes: p.imagenes })),
   };
@@ -440,7 +441,7 @@ export async function vistaGenerador(contenedor, id) {
     id: id || null,
     versionMayor: null,
     categoria: [],
-    datos: { nombre: '', fecha: hoyISO(), version: '1.0', autor: '', link: '', tags: [] },
+    datos: { nombre: '', fecha: hoyISO(), version: '1.0', autor: '', link: '', descripcion: '', tags: [] },
     pasos: [],
   };
   let pasosIniciales = [];
@@ -449,7 +450,7 @@ export async function vistaGenerador(contenedor, id) {
     const d = detalle.datos;
     f.versionMayor = detalle.versiones[0].version; // vienen ordenadas de mayor a menor
     f.categoria = detalle.categoria;
-    Object.assign(f.datos, { nombre: d.nombre, link: d.link || '', tags: [...(d.tags || [])], version: siguienteVersion(f.versionMayor) });
+    Object.assign(f.datos, { nombre: d.nombre, link: d.link || '', descripcion: d.descripcion || '', tags: [...(d.tags || [])], version: siguienteVersion(f.versionMayor) });
     pasosIniciales = await Promise.all(
       d.pasos.map(async (p) => ({
         id: nuevoId(),
@@ -597,6 +598,33 @@ export async function vistaGenerador(contenedor, id) {
               h('datalist', { id: 'lista-tags' }, tagsExistentes.map((t) => h('option', { value: t }))),
               h('small', { class: 'ayuda' }, 'Tags libres para indexar el procedimiento. Separa con Enter o coma.'),
             ),
+          ),
+        ),
+        h(
+          'section',
+          { class: 'tarjeta' },
+          h('div', { class: 'tarjeta-cabecera' }, h('h2', {}, 'Descripción'), h('span', { class: 'texto-suave' }, 'Opcional')),
+          h(
+            'label',
+            { class: 'etiqueta', for: 'g-descripcion' },
+            h('span', { class: 'texto-suave' }, 'Introducción al procedimiento: objetivo, alcance o requisitos previos. Aparece antes de los pasos.'),
+            (() => {
+              const area = h('textarea', {
+                id: 'g-descripcion',
+                class: 'campo paso-texto',
+                rows: 3,
+                maxlength: 5000,
+                placeholder: 'Ej.: Este procedimiento describe cómo crear una VLAN en los switches Cisco de las sucursales. Requiere acceso de administrador.',
+                oninput: (e) => {
+                  f.datos.descripcion = e.target.value;
+                  marcarCambios();
+                  ajustarAlto(e.target);
+                },
+              });
+              area.value = f.datos.descripcion;
+              requestAnimationFrame(() => ajustarAlto(area));
+              return area;
+            })(),
           ),
         ),
         h(
