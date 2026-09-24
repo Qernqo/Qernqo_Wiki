@@ -529,12 +529,9 @@ button.chip:hover {
   position: relative;
   padding-bottom: 40px;
 }
+/* Categorías alineada arriba con el cuadro de filtros (sin desplazarse al bajar). */
 .panel-arbol {
   align-self: start;
-  position: sticky;
-  top: 80px;
-  max-height: calc(100vh - 100px);
-  overflow: auto;
 }
 .arbol-todas {
   display: flex;
@@ -823,12 +820,16 @@ button.chip:hover {
   border-bottom: 1px solid var(--borde);
   vertical-align: middle;
 }
+/* La celda sigue siendo de tabla (display flex rompía su borde inferior). */
 .acciones-tabla {
-  display: flex;
-  gap: 6px;
-  justify-content: flex-end;
+  text-align: right;
+  white-space: nowrap;
 }
-.wrap > .tarjeta {
+.acciones-tabla > * + * {
+  margin-left: 6px;
+}
+/* tarjeta única que se superpone al hero (papelera) */
+.tarjeta-sobre-hero {
   margin-top: -40px;
   position: relative;
   margin-bottom: 40px;

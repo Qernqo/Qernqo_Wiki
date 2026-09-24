@@ -520,7 +520,7 @@ export async function vistaGenerador(contenedor, id) {
       h(
         'div',
         { class: 'wrap' },
-        h('h1', {}, id ? 'Editar procedimiento' : 'Generador de procedimientos'),
+        h('h1', {}, id ? 'Editar procedimiento' : 'Crear Procedimiento'),
         h(
           'p',
           {},
