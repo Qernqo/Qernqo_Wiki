@@ -1,0 +1,48 @@
+# /etc/caddy/Caddyfile — Wiki Unidad Soporte TI
+# El HTTPS lo pone Cloudflare (túnel). Caddy solo atiende HTTP local.
+{
+	# sin certificados automáticos: el tráfico llega por el túnel
+	auto_https off
+}
+
+:80 {
+	# Escucha solo en la máquina. Si quieres acceso directo desde la red
+	# interna (VPC de Vultr), agrega la IP privada del servidor, p. ej.:
+	#   bind 127.0.0.1 10.1.96.3
+	bind 127.0.0.1
+
+	encode zstd gzip
+
+	header {
+		X-Content-Type-Options nosniff
+		X-Frame-Options SAMEORIGIN
+		Referrer-Policy same-origin
+		-Server
+	}
+
+	# API (Node.js)
+	handle /api/* {
+		request_body {
+			max_size 100MB
+		}
+		reverse_proxy 127.0.0.1:3000
+	}
+
+	# PDFs e imágenes de la biblioteca (solo lectura)
+	handle_path /archivos/* {
+		@oculto path_regexp /\.
+		respond @oculto 404
+		root * /srv/wiki/data/biblioteca
+		header Cache-Control "no-cache"
+		file_server
+	}
+
+	# Aplicación web
+	handle {
+		root * /srv/wiki/app/public
+		try_files {path} /index.html
+		# revalidar siempre: tras actualizar la wiki los navegadores toman los cambios
+		header Cache-Control "no-cache"
+		file_server
+	}
+}

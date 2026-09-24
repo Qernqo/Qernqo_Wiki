@@ -1,0 +1,26 @@
+# /etc/systemd/system/wiki.service
+[Unit]
+Description=Wiki Unidad Soporte TI - Saesa (API Node.js)
+After=network.target
+
+[Service]
+Type=simple
+User=wiki
+Group=wiki
+WorkingDirectory=/srv/wiki/app
+EnvironmentFile=/etc/wiki/wiki.env
+ExecStart=/usr/bin/node /srv/wiki/app/server/server.js
+Restart=on-failure
+RestartSec=3
+# archivos legibles por Caddy (grupo/otros solo lectura)
+UMask=0022
+
+# endurecimiento
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/srv/wiki/data
+
+[Install]
+WantedBy=multi-user.target

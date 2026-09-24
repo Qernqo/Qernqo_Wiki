@@ -1,0 +1,12 @@
+# /etc/systemd/system/wiki-respaldo.service
+[Unit]
+Description=Respaldo de la Wiki Unidad Soporte TI
+
+[Service]
+Type=oneshot
+User=wiki
+Group=wiki
+EnvironmentFile=/etc/wiki/wiki.env
+Environment=WIKI_RESPALDOS=/var/backups/wiki
+Environment=WIKI_RESPALDO_DIAS=30
+ExecStart=/srv/wiki/app/deploy/respaldo.sh

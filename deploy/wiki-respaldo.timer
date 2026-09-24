@@ -1,0 +1,10 @@
+# /etc/systemd/system/wiki-respaldo.timer — todos los días a las 02:30
+[Unit]
+Description=Respaldo diario de la Wiki
+
+[Timer]
+OnCalendar=*-*-* 02:30:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

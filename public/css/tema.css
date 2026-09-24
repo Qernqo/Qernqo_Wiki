@@ -1,0 +1,44 @@
+/* Tema visual (basado en saesa.cl). Cambia aquí los colores de toda la wiki.
+   Los colores del PDF están en js/pdf.js (constante COLOR). */
+@font-face {
+  font-family: 'Figtree';
+  font-weight: 400;
+  font-display: swap;
+  src: url('../assets/fonts/figtree-latin-400-normal.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Figtree';
+  font-weight: 600;
+  font-display: swap;
+  src: url('../assets/fonts/figtree-latin-600-normal.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Figtree';
+  font-weight: 700;
+  font-display: swap;
+  src: url('../assets/fonts/figtree-latin-700-normal.woff2') format('woff2');
+}
+
+:root {
+  --morado: #4f1fff; /* color del logo y botones */
+  --morado-oscuro: #3a12d1;
+  --morado-suave: #ece8ff;
+  --azul: #0b2559; /* cabecera */
+  --azul-barra: #3b4b7c; /* barra superior */
+  --azul-texto: #0b2559;
+  --lima: #d7e84a; /* acento */
+  --fondo: #f4f5fa;
+  --superficie: #ffffff;
+  --superficie-2: #f7f8fc;
+  --texto: #212638;
+  --texto-suave: #626980;
+  --borde: #dee1ec;
+  --peligro: #c62828;
+  --peligro-suave: #fdecec;
+  --exito: #1b7f4b;
+  --radio: 14px;
+  --radio-chico: 10px;
+  --sombra: 0 1px 2px rgba(11, 37, 89, 0.06), 0 6px 20px rgba(11, 37, 89, 0.07);
+  --fuente: 'Figtree', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  color-scheme: light;
+}
