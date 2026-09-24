@@ -636,18 +636,51 @@ button.chip:hover {
 }
 .filtros-tags {
   display: flex;
-  gap: 12px;
-  align-items: flex-start;
+  flex-direction: column;
+  gap: 10px;
 }
-.etiqueta-inline {
+.tags-toggle {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
+  align-self: flex-start;
+  border: 0;
+  background: none;
+  padding: 4px 2px;
   font-size: 13px;
   font-weight: 700;
   color: var(--azul-texto);
-  padding-top: 5px;
-  white-space: nowrap;
+}
+.tags-toggle:hover {
+  color: var(--morado);
+}
+.triangulo {
+  width: 0;
+  height: 0;
+  border-left: 7px solid currentColor;
+  border-top: 5px solid transparent;
+  border-bottom: 5px solid transparent;
+  transition: transform 0.15s;
+}
+.tags-toggle[aria-expanded='true'] .triangulo {
+  transform: rotate(90deg);
+}
+.tags-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.campo-chico {
+  padding: 7px 12px;
+  font-size: 14px;
+  max-width: 320px;
+}
+/* con cientos de tags la lista no empuja los resultados: tiene su propio scroll */
+.tags-lista {
+  max-height: 172px;
+  overflow-y: auto;
+  align-content: flex-start;
+  padding: 2px;
 }
 .resultados-cabecera {
   display: flex;

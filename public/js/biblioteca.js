@@ -7,6 +7,9 @@ import { estado, puedeEditar, esAdmin, cargarBiblioteca, categoriasPlanas, texto
 // Filtros persistentes mientras la página esté abierta.
 const filtros = { q: '', categoria: [], tags: new Set(), autor: '', desde: '', hasta: '', orden: 'relevancia' };
 const expandidas = new Set();
+// Panel de tags: cerrado por defecto; se recuerda mientras la página esté abierta.
+let tagsAbierto = false;
+let busquedaTag = '';
 let motor = null;
 let todosLosTags = [];
 let cont = null;
@@ -337,9 +340,12 @@ function pintarArbol() {
 
 function pintarTags() {
   const zona = cont.querySelector('#tags-filtro');
-  const verTodos = zona.dataset.todos === '1';
-  const visibles = verTodos ? todosLosTags : todosLosTags.slice(0, 18);
-  poner(zona, 
+  const q = normalizar(busquedaTag.trim());
+  const visibles = q ? todosLosTags.filter(([t]) => normalizar(t).includes(q)) : todosLosTags;
+  const activos = filtros.tags.size;
+  cont.querySelector('#tags-total').textContent = `${todosLosTags.length}${activos ? ` · ${activos} activo${activos === 1 ? '' : 's'}` : ''}`;
+  poner(
+    zona,
     ...visibles.map(([t, n]) =>
       h(
         'button',
@@ -355,21 +361,15 @@ function pintarTags() {
         h('span', { class: 'chip-num' }, n),
       ),
     ),
-    todosLosTags.length > 18
-      ? h(
-          'button',
-          {
-            class: 'enlace',
-            onclick: () => {
-              zona.dataset.todos = verTodos ? '0' : '1';
-              pintarTags();
-            },
-          },
-          verTodos ? 'Ver menos' : `Ver todos (${todosLosTags.length})`,
-        )
-      : null,
-    todosLosTags.length ? null : h('span', { class: 'texto-suave' }, 'Sin tags todavía'),
+    visibles.length ? null : h('span', { class: 'texto-suave' }, todosLosTags.length ? 'Ningún tag coincide con la búsqueda' : 'Sin tags todavía'),
   );
+}
+
+function alternarTags() {
+  tagsAbierto = !tagsAbierto;
+  cont.querySelector('#tags-toggle').setAttribute('aria-expanded', String(tagsAbierto));
+  cont.querySelector('#tags-panel').hidden = !tagsAbierto;
+  if (tagsAbierto) cont.querySelector('#tags-buscar').focus();
 }
 
 function tarjetaFicha(f) {
@@ -563,7 +563,36 @@ function pintar() {
               ),
             ),
           ),
-          h('div', { class: 'filtros-tags' }, h('span', { class: 'etiqueta-inline' }, icono('tag'), 'Tags'), h('div', { id: 'tags-filtro', class: 'chips' })),
+          h(
+            'div',
+            { class: 'filtros-tags' },
+            h(
+              'button',
+              { id: 'tags-toggle', type: 'button', class: 'tags-toggle', 'aria-expanded': String(tagsAbierto), 'aria-controls': 'tags-panel', onclick: alternarTags },
+              h('span', { class: 'triangulo', 'aria-hidden': 'true' }),
+              icono('tag'),
+              'Tags',
+              h('span', { id: 'tags-total', class: 'chip-num' }),
+            ),
+            h(
+              'div',
+              { id: 'tags-panel', class: 'tags-panel', hidden: !tagsAbierto },
+              h('input', {
+                id: 'tags-buscar',
+                type: 'search',
+                class: 'campo campo-chico',
+                placeholder: 'Buscar tag…',
+                'aria-label': 'Buscar tag',
+                autocomplete: 'off',
+                value: busquedaTag,
+                oninput: (e) => {
+                  busquedaTag = e.target.value;
+                  pintarTags();
+                },
+              }),
+              h('div', { id: 'tags-filtro', class: 'chips tags-lista' }),
+            ),
+          ),
         ),
         h('div', { class: 'resultados-cabecera' }, h('strong', { id: 'conteo' }), h('div', { id: 'activos', class: 'chips' })),
         h('p', { id: 'aviso-parcial', class: 'aviso-parcial', hidden: true }, 'Ningún procedimiento contiene todas las palabras; se muestran coincidencias parciales.'),
