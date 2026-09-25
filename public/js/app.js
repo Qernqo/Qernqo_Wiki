@@ -10,12 +10,16 @@ const principal = document.getElementById('principal');
 // ---------- sesión ----------
 
 async function ingresar() {
-  const usuario = h(
-    'select',
-    { class: 'campo', name: 'usuario' },
-    h('option', { value: 'up_user' }, 'up_user — Editor'),
-    h('option', { value: 'admin_user' }, 'admin_user — Administrador'),
-  );
+  const usuario = h('input', {
+    class: 'campo',
+    type: 'text',
+    name: 'usuario',
+    autocomplete: 'username',
+    autocapitalize: 'none',
+    spellcheck: 'false',
+    maxlength: 40,
+    required: true,
+  });
   const clave = h('input', { class: 'campo', type: 'password', name: 'clave', autocomplete: 'current-password', required: true });
   const error = h('p', { class: 'error-form', hidden: true });
   const ok = await modal({

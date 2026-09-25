@@ -121,7 +121,8 @@ const rutas = [
     (ctx) => {
       const ip = ipCliente(ctx.req);
       controlarIntentos(ip);
-      const u = auth.verificar(ctx.body.usuario, ctx.body.clave);
+      const usuario = String(ctx.body.usuario || '').trim().toLowerCase();
+      const u = auth.verificar(usuario, ctx.body.clave);
       if (!u) {
         registrarFallo(ip);
         throw new ErrorApi(401, 'Usuario o clave incorrectos');

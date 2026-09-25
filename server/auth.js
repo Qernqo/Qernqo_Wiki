@@ -7,6 +7,8 @@ const crypto = require('node:crypto');
 const C = require('./config');
 
 const USUARIOS = { admin_user: 'admin', up_user: 'editor' };
+// Solo nombres propios del objeto (evita coincidir con "constructor", "__proto__"…).
+const existe = (usuario) => typeof usuario === 'string' && Object.hasOwn(USUARIOS, usuario);
 
 const archivoUsuarios = () => path.join(C.CONFIG, 'usuarios.json');
 
@@ -27,7 +29,7 @@ function hashClave(clave, sal = crypto.randomBytes(16).toString('hex')) {
 }
 
 function fijarClave(usuario, clave) {
-  if (!USUARIOS[usuario]) throw new Error(`Usuario desconocido: ${usuario}`);
+  if (!existe(usuario)) throw new Error(`Usuario desconocido: ${usuario}`);
   if (typeof clave !== 'string' || clave.length < 10) {
     throw new Error('La clave debe tener al menos 10 caracteres');
   }
@@ -40,7 +42,7 @@ function fijarClave(usuario, clave) {
 }
 
 function verificar(usuario, clave) {
-  const u = USUARIOS[usuario] && leerUsuarios()[usuario];
+  const u = existe(usuario) && leerUsuarios()[usuario];
   if (!u || typeof clave !== 'string') {
     hashClave(String(clave || '')); // mismo costo para no revelar qué usuarios existen
     return null;
@@ -81,7 +83,7 @@ function leerToken(token) {
   const [datos, firma] = token.split('.');
   if (!datos || !firma) return null;
   const [usuario, exp] = Buffer.from(datos, 'base64url').toString().split('|');
-  const u = USUARIOS[usuario] && leerUsuarios()[usuario];
+  const u = existe(usuario) && leerUsuarios()[usuario];
   if (!u) return null;
   const esperada = Buffer.from(firmar(datos, u));
   const recibida = Buffer.from(firma);
