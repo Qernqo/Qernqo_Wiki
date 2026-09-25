@@ -1561,3 +1561,21 @@ button.chip:hover {
     align-items: flex-start;
   }
 }
+
+/* contador de tags en Crear Procedimiento */
+.ayuda-tags {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+.contador-tags {
+  white-space: nowrap;
+  font-weight: 600;
+}
+.contador-tags.lleno {
+  color: var(--morado);
+}
+.tag-entrada:disabled {
+  background: transparent;
+  cursor: not-allowed;
+}

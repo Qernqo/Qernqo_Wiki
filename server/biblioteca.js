@@ -257,7 +257,7 @@ function validarDatos(d) {
 
   if (d.tags != null && !Array.isArray(d.tags)) falla(400, 'Tags inválidos');
   const tags = [...new Set((d.tags || []).map((t) => texto(t, 40, 'un tag', false)).filter(Boolean))];
-  if (tags.length > 30) falla(400, 'Máximo 30 tags');
+  if (tags.length > C.MAX_TAGS) falla(400, `Máximo ${C.MAX_TAGS} tags por procedimiento`);
 
   if (!Array.isArray(d.pasos) || !d.pasos.length) falla(400, 'Agrega al menos un paso');
   if (d.pasos.length > 300) falla(400, 'Demasiados pasos');

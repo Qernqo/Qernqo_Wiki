@@ -20,6 +20,7 @@ import { crearPdf } from './pdf.js';
 import { qrSvg } from './qr.js';
 
 const MAX_IMAGENES = 4;
+const MAX_TAGS = 5;
 const MAX_LADO = 1600; // px
 let contador = 0;
 const nuevoId = () => `p${++contador}`;
@@ -275,6 +276,14 @@ function pintarTags() {
       entrada,
     ),
   );
+  const n = f.datos.tags.length;
+  const lleno = n >= MAX_TAGS;
+  entrada.disabled = lleno;
+  entrada.placeholder = lleno ? `Máximo ${MAX_TAGS} tags` : n ? '' : 'Escribe un tag y presiona Enter';
+  zona.classList.toggle('invalido', n > MAX_TAGS);
+  const contador = cont.querySelector('#tags-contador');
+  contador.textContent = `${n} de ${MAX_TAGS} tags`;
+  contador.classList.toggle('lleno', lleno);
 }
 
 function agregarTag(valor) {
@@ -282,9 +291,13 @@ function agregarTag(valor) {
     .split(',')
     .map((t) => t.trim().replace(/\s+/g, ' ').slice(0, 40))
     .filter(Boolean);
+  const omitidos = [];
   for (const t of nuevos) {
-    if (!f.datos.tags.some((x) => x.toLowerCase() === t.toLowerCase()) && f.datos.tags.length < 30) f.datos.tags.push(t);
+    if (f.datos.tags.some((x) => x.toLowerCase() === t.toLowerCase())) continue;
+    if (f.datos.tags.length < MAX_TAGS) f.datos.tags.push(t);
+    else omitidos.push(t);
   }
+  if (omitidos.length) aviso(`Máximo ${MAX_TAGS} tags por procedimiento. No se agregó: ${omitidos.join(', ')}`, 'error');
   marcarCambios();
   pintarTags();
 }
@@ -323,6 +336,7 @@ function validar() {
   if (!d.autor.trim()) errores.push('Ingresa quién elabora el procedimiento ("Elaborado por")');
   marcar('#g-autor', !!d.autor.trim());
   if (!f.categoria.length) errores.push('Selecciona una categoría');
+  if (d.tags.length > MAX_TAGS) errores.push(`Deja como máximo ${MAX_TAGS} tags (hay ${d.tags.length})`);
   marcar('#g-categoria', !!f.categoria.length);
   const linkOk = !d.link.trim() || /^https?:\/\/\S+$/i.test(d.link.trim());
   if (!linkOk) errores.push('El link debe comenzar con http:// o https://');
@@ -596,7 +610,12 @@ export async function vistaGenerador(contenedor, id) {
               h('span', {}, 'Tags'),
               h('div', { id: 'tags', class: 'campo campo-tags', onclick: () => entradaTag.focus() }, entradaTag),
               h('datalist', { id: 'lista-tags' }, tagsExistentes.map((t) => h('option', { value: t }))),
-              h('small', { class: 'ayuda' }, 'Tags libres para indexar el procedimiento. Separa con Enter o coma.'),
+              h(
+                'small',
+                { class: 'ayuda ayuda-tags' },
+                h('span', {}, `Hasta ${MAX_TAGS} tags libres para indexar el procedimiento. Separa con Enter o coma.`),
+                h('span', { id: 'tags-contador', class: 'contador-tags' }),
+              ),
             ),
           ),
         ),
