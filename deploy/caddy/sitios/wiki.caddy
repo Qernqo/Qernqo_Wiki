@@ -1,0 +1,27 @@
+# Wiki Unidad Soporte TI - Saesa · https://wiki.aysen.app
+http://wiki.aysen.app {
+	import comunes
+
+	# API (Node.js, servicio systemd "wiki")
+	handle /api/* {
+		request_body {
+			max_size 100MB
+		}
+		reverse_proxy 127.0.0.1:3000
+	}
+
+	# PDFs e imágenes de la biblioteca (solo lectura)
+	handle_path /archivos/* {
+		root * /srv/wiki/data/biblioteca
+		header Cache-Control "no-cache"
+		file_server
+	}
+
+	# Aplicación web
+	handle {
+		root * /srv/wiki/app/public
+		try_files {path} /index.html
+		header Cache-Control "no-cache"
+		file_server
+	}
+}

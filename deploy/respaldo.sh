@@ -4,7 +4,7 @@
 # ocupa ~1,1 veces el tamaño de los datos aunque se conserven muchas copias.
 #
 # Para respaldar fuera del servidor más adelante basta con cambiar
-# RESTIC_REPOSITORY (p. ej. s3:https://ewr1.vultrobjects.com/mi-bucket/wiki)
+# RESTIC_REPOSITORY (p. ej. s3:https://s3.<región>.io.cloud.ovh.net/mi-bucket/wiki)
 # y definir AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY.
 set -euo pipefail
 

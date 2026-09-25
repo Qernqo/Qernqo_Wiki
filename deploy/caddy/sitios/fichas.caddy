@@ -1,0 +1,5 @@
+# Fichas de entrega · https://fichas.aysen.app (HTML estático)
+# Copiar a /etc/caddy/sitios/ cuando fichas se migre a este servidor.
+http://fichas.aysen.app {
+	import estatico /srv/fichas/public
+}

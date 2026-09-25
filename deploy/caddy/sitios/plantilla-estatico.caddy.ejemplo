@@ -1,0 +1,10 @@
+# Plantilla para un sitio de HTML estático nuevo.
+#   1. sudo mkdir -p /srv/NOMBRE/public   (y copiar ahí el index.html y demás archivos)
+#   2. sudo cp plantilla-estatico.caddy.ejemplo /etc/caddy/sitios/NOMBRE.caddy
+#   3. Reemplazar NOMBRE en ese archivo (dominio y carpeta)
+#   4. sudo caddy validate --config /etc/caddy/Caddyfile && sudo systemctl reload caddy
+#   5. Cloudflare: agregar el Public Hostname NOMBRE.aysen.app → http://localhost:80
+#      y proteger el dominio en Cloudflare Access.
+http://NOMBRE.aysen.app {
+	import estatico /srv/NOMBRE/public
+}
