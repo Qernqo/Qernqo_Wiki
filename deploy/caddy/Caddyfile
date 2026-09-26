@@ -1,11 +1,14 @@
 # /etc/caddy/Caddyfile — configuración base de todos los sitios del servidor.
-# Cada subdominio vive en su propio archivo: /etc/caddy/sitios/<sitio>.caddy
+# Cada sitio vive en su propio archivo (/etc/caddy/sitios/<sitio>.caddy) y
+# escucha en su PROPIO PUERTO local; el túnel de Cloudflare apunta a ese puerto:
 #
-#   Cloudflare (túnel + Access) ─► cloudflared ─► Caddy 127.0.0.1:80 ─► sitio según el dominio
+#   wiki.aysen.app    → http://localhost:8080   (repo qernqo_wiki)
+#   fichas.aysen.app  → http://localhost:8081   (repo qernqo_fichas)
+#   <nuevo>.aysen.app → http://localhost:8082, 8083…
 {
 	# El HTTPS lo pone Cloudflare: Caddy atiende solo HTTP local.
 	auto_https off
-	# Solo accesible desde la propia máquina (cloudflared se conecta a localhost:80).
+	# Solo accesible desde la propia máquina (cloudflared se conecta a localhost).
 	# Para entrar también desde la red interna agrega la IP privada: default_bind 127.0.0.1 10.0.0.5
 	default_bind 127.0.0.1
 }
@@ -30,6 +33,7 @@
 }
 
 # Sitio de HTML estático. Uso: import estatico /srv/<sitio>/public
+# (bloquea la cámara/micrófono: un sitio que los necesite define sus propias cabeceras)
 (estatico) {
 	import comunes
 	handle {
@@ -40,9 +44,9 @@
 	}
 }
 
-import sitios/*.caddy
+import /etc/caddy/sitios/*.caddy
 
-# Cualquier otro dominio que llegue por el túnel.
-http:// {
-	respond "Sitio no configurado" 404
+# Puerto 80 sin uso: si un hostname del túnel apunta aquí por error, se nota.
+:80 {
+	respond "Sitio no configurado: revisa el puerto del hostname en el túnel de Cloudflare" 404
 }

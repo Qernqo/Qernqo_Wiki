@@ -4,18 +4,19 @@ Arquitectura final:
 
 ```
 Usuario ─► Cloudflare Access (login por correo) ─► Túnel Cloudflare ─► cloudflared (en el servidor)
-        ─► Caddy 127.0.0.1:80 ─┬─ wiki.aysen.app   ─┬─ /            → /srv/wiki/app/public
-           (un sitio por       │                    ├─ /archivos/*  → /srv/wiki/data/biblioteca
-            subdominio)        │                    └─ /api/*       → Node.js :3000 (systemd: wiki)
-                               ├─ fichas.aysen.app  →  /srv/fichas/public   (HTML estático, cuando se migre)
-                               └─ <nuevo>.aysen.app →  /srv/<nuevo>/public
+        ─┬─ wiki.aysen.app    → Caddy 127.0.0.1:8080 ─┬─ /            → /srv/wiki/app/public
+         │                                             ├─ /archivos/*  → /srv/wiki/data/biblioteca
+         │                                             └─ /api/*       → Node.js :3000 (systemd: wiki)
+         ├─ fichas.aysen.app  → Caddy 127.0.0.1:8081 ─── /srv/fichas/app/dist   (repo qernqo_fichas)
+         └─ <nuevo>.aysen.app → Caddy 127.0.0.1:8082… ── /srv/<nuevo>/public
 ```
 
 - **No se abren puertos** a Internet: el túnel sale desde el servidor hacia Cloudflare.
 - El HTTPS lo pone Cloudflare; Caddy trabaja solo en HTTP local.
 - El backend **no usa dependencias npm**: basta con Node.js.
 - La wiki es la **base inicial** del servidor: Caddy queda preparado para agregar más
-  subdominios (sección 12).
+  subdominios (sección 12). **Cada sitio tiene su propio puerto local** (wiki 8080, fichas 8081,
+  los siguientes 8082, 8083…) y el túnel de Cloudflare apunta cada hostname a su puerto.
 
 Todos los comandos se ejecutan como un usuario con `sudo`.
 
@@ -117,16 +118,18 @@ sudo systemctl status wiki --no-pager
 curl -s http://127.0.0.1:3000/api/sesion     # → {"usuario":null}
 ```
 
-## 7. Configurar Caddy (un archivo por subdominio)
+## 7. Configurar Caddy (un archivo y un puerto por sitio)
 
 La configuración vive en `deploy/caddy/`:
 
 ```
-Caddyfile                          → /etc/caddy/Caddyfile        (base común de todos los sitios)
-sitios/wiki.caddy                  → /etc/caddy/sitios/wiki.caddy
-sitios/fichas.caddy                → para cuando fichas se migre a este servidor
-sitios/plantilla-estatico.caddy.ejemplo  → plantilla para sitios nuevos
+Caddyfile                                → /etc/caddy/Caddyfile   (base común de todos los sitios)
+sitios/wiki.caddy                        → /etc/caddy/sitios/wiki.caddy   (puerto 8080)
+sitios/plantilla-estatico.caddy.ejemplo  → plantilla para sitios estáticos nuevos
 ```
+
+`deploy/Caddyfile` es un acceso directo a `deploy/caddy/Caddyfile` (lo usa la guía de Fichas).
+La configuración de Fichas **no** está aquí: viene en su propio repositorio (sección 12).
 
 ```bash
 # si el servidor ya tenía un Caddyfile, guárdalo antes de reemplazarlo
@@ -137,19 +140,22 @@ sudo cp /srv/wiki/app/deploy/caddy/Caddyfile /etc/caddy/Caddyfile
 sudo cp /srv/wiki/app/deploy/caddy/sitios/wiki.caddy /etc/caddy/sitios/
 sudo caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
 sudo systemctl reload caddy
-curl -sI -H "Host: wiki.aysen.app" http://127.0.0.1/ | head -1    # → HTTP/1.1 200 OK
+curl -sI http://127.0.0.1:8080/ | head -1    # → HTTP/1.1 200 OK
 ```
 
 Qué hace la base común (`Caddyfile`):
 - Sin certificados propios (`auto_https off`): el HTTPS lo pone Cloudflare.
 - Escucha solo en `127.0.0.1` (`default_bind`): nadie llega a Caddy sin pasar por el túnel.
-- Compresión, cabeceras de seguridad y bloqueo de archivos ocultos (`.git`, `.env`…) en todos
-  los sitios.
-- Un dominio que no tenga archivo en `sitios/` responde "Sitio no configurado" (404).
+- Carga cada sitio desde `/etc/caddy/sitios/*.caddy`; cada uno escucha en su propio puerto.
+- Ofrece ajustes comunes (compresión, cabeceras de seguridad, bloqueo de archivos ocultos
+  como `.git` o `.env`) que la wiki y los sitios creados con la plantilla usan.
+- El puerto 80 queda sin sitio y responde "Sitio no configurado" (404): si ves ese mensaje en
+  el navegador, el hostname del túnel apunta al puerto equivocado.
 
 > Si quieres entrar también directamente desde la red interna, agrega la IP privada del
-> servidor en `default_bind` (p. ej. `default_bind 127.0.0.1 10.0.0.5`) y permite el puerto 80
-> solo desde esa red: `sudo ufw allow from 10.0.0.0/8 to any port 80 proto tcp` (ajusta el rango).
+> servidor en `default_bind` (p. ej. `default_bind 127.0.0.1 10.0.0.5`) y permite el puerto de
+> cada sitio solo desde esa red, p. ej. `sudo ufw allow from 10.0.0.0/8 to any port 8080 proto tcp`
+> (ajusta el rango).
 
 ## 8. Túnel de Cloudflare + Cloudflare Access
 
@@ -165,18 +171,18 @@ sudo apt update && sudo apt install -y cloudflared
 ### 8.2 Crear el túnel (desde el panel, lo más simple)
 
 1. En **Cloudflare Zero Trust** → **Networks → Tunnels** → **Create a tunnel** → tipo *Cloudflared*.
-2. Nombre: `vps-ovh` (un solo túnel sirve para todos los subdominios). Elige *Debian / 64-bit*
-   y copia el comando que aparece:
+2. Nombre: `wiki-soporte-ti` (un solo túnel sirve para todos los subdominios; la guía de Fichas
+   usa este mismo nombre). Elige *Debian / 64-bit* y copia el comando que aparece:
    ```bash
    sudo cloudflared service install <TOKEN_QUE_ENTREGA_CLOUDFLARE>
    ```
    Ejecútalo en el servidor. El túnel queda como servicio y arranca solo.
 3. En **Public Hostname** agrega:
    - Subdominio: `wiki` · Dominio: `aysen.app`
-   - Service: **HTTP** → `localhost:80`
+   - Service: **HTTP** → `localhost:8080`
 
-   Cada subdominio nuevo es otro *Public Hostname* en el mismo túnel, también hacia
-   `localhost:80`: Caddy decide qué sitio mostrar según el dominio.
+   Cada subdominio es otro *Public Hostname* en el mismo túnel, apuntando a **su** puerto:
+   `fichas.aysen.app` → `localhost:8081`, el siguiente sitio → `localhost:8082`, etc.
 
 ### 8.3 Proteger con Cloudflare Access (login por correo)
 
@@ -187,6 +193,11 @@ sudo apt update && sudo apt install -y cloudflared
 4. Método de login: **One-time PIN** (código enviado al correo).
 5. En el panel del dominio: **SSL/TLS → Edge Certificates → Always Use HTTPS = activado**.
    La wiki marca su cookie de sesión como solo-HTTPS (`WIKI_COOKIE_SECURE=1`).
+6. En el panel del dominio: **Speed → Optimization → Content Optimization → Rocket Loader =
+   desactivado** (para todo `aysen.app`; Fichas también lo exige). Rocket Loader inyecta un
+   script de Cloudflare que la política de seguridad de la wiki (CSP) bloquea, y la página
+   dejaría de funcionar. Por lo mismo, no actives otras funciones que inyectan scripts en las
+   páginas (p. ej. *Email Address Obfuscation* o el *beacon* automático de Web Analytics).
 
 > Los nombres de los menús de Cloudflare pueden variar levemente, pero los pasos son los mismos.
 
@@ -284,26 +295,44 @@ disco y sin `-H` se copiarían duplicadas (funciona igual, pero ocupa más). Si 
 mueves carpetas a mano, entra como `admin_user` → **Papelera → Reconstruir índice**
 (o reinicia el servicio).
 
-## 12. Agregar otro subdominio (sitio de HTML estático)
+## 12. Otros sitios en el mismo servidor
 
-Ejemplo con `fichas.aysen.app`; para otro sitio usa la plantilla
-`deploy/caddy/sitios/plantilla-estatico.caddy.ejemplo` y cambia `NOMBRE`.
+Cada sitio tiene su archivo en `/etc/caddy/sitios/` y su propio puerto:
+
+| Sitio              | Puerto | Configuración                                  | Guía                              |
+|--------------------|--------|------------------------------------------------|-----------------------------------|
+| `wiki.aysen.app`   | 8080   | `deploy/caddy/sitios/wiki.caddy` (este repo)   | este documento                    |
+| `fichas.aysen.app` | 8081   | `deploy/fichas.caddy` (repo `qernqo_fichas`)   | `INSTALACION.md` de `qernqo_fichas` |
+| (siguiente sitio)  | 8082   | plantilla `deploy/caddy/sitios/plantilla-estatico.caddy.ejemplo` | abajo |
+
+### 12.1 Fichas
+
+Se instala con **su propia guía** (`INSTALACION.md` del repositorio `qernqo_fichas`), que parte
+de la wiki ya instalada: usa este Caddy y este mismo túnel. Su configuración de Caddy la trae
+su repositorio (puerto 8081, cabecera que habilita la cámara del lector de códigos) y la
+actualiza su propio `deploy/actualizar.sh`: no la copies desde este repositorio.
+
+### 12.2 Un sitio de HTML estático nuevo
 
 ```bash
 # 1) archivos del sitio
-sudo mkdir -p /srv/fichas/public
-sudo cp -r /ruta/del/html/* /srv/fichas/public/      # index.html y demás archivos
-sudo chmod -R a+rX /srv/fichas
+sudo mkdir -p /srv/NOMBRE/public
+sudo cp -r /ruta/del/html/* /srv/NOMBRE/public/      # index.html y demás archivos
+sudo chmod -R a+rX /srv/NOMBRE
 
-# 2) configuración de Caddy
-sudo cp /srv/wiki/app/deploy/caddy/sitios/fichas.caddy /etc/caddy/sitios/
+# 2) configuración de Caddy (reemplaza NOMBRE y PUERTO dentro del archivo; PUERTO = 8082, 8083…)
+sudo cp /srv/wiki/app/deploy/caddy/sitios/plantilla-estatico.caddy.ejemplo /etc/caddy/sitios/NOMBRE.caddy
+sudo nano /etc/caddy/sitios/NOMBRE.caddy
 sudo caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
 sudo systemctl reload caddy
-curl -sI -H "Host: fichas.aysen.app" http://127.0.0.1/ | head -1   # → HTTP/1.1 200 OK
+curl -sI http://127.0.0.1:PUERTO/ | head -1   # → HTTP/1.1 200 OK
 ```
 
-3) En Cloudflare: agrega el *Public Hostname* `fichas.aysen.app` → `http://localhost:80` en el
+3) En Cloudflare: agrega el *Public Hostname* `NOMBRE.aysen.app` → `http://localhost:PUERTO` en el
    mismo túnel, y protégelo con Cloudflare Access (sección 8.3).
+
+La plantilla usa los ajustes comunes, que **bloquean cámara y micrófono**. Si el sitio los
+necesita, define sus propias cabeceras en vez de `import estatico` (como hace Fichas).
 
 Quitar un sitio: borrar su archivo de `/etc/caddy/sitios/`, `sudo systemctl reload caddy` y
 eliminar su *Public Hostname* en Cloudflare.
@@ -315,6 +344,7 @@ eliminar su *Public Hostname* en Cloudflare.
 | Logs del backend     | `journalctl -u wiki -f`                   |
 | Logs de Caddy        | `journalctl -u caddy -f`                  |
 | Sitios activos       | `ls /etc/caddy/sitios/`                   |
+| Wiki responde local  | `curl -sI http://127.0.0.1:8080/ \| head -1` |
 | Estado del túnel     | `systemctl status cloudflared`            |
 | Usuarios con clave   | `sudo -u wiki env WIKI_DATA_DIR=/srv/wiki/data node /srv/wiki/app/server/cli.js usuarios` |
 | Último respaldo      | `journalctl -u wiki-respaldo -n 20 --no-pager` |

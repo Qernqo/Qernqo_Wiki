@@ -1,10 +1,18 @@
-# Plantilla para un sitio de HTML estático nuevo.
+# Plantilla para un sitio de HTML estático nuevo (un puerto propio por sitio).
+#
+# Puertos en uso:  8080 wiki · 8081 fichas · usa el siguiente libre (8082, 8083…)
+#
 #   1. sudo mkdir -p /srv/NOMBRE/public   (y copiar ahí el index.html y demás archivos)
 #   2. sudo cp plantilla-estatico.caddy.ejemplo /etc/caddy/sitios/NOMBRE.caddy
-#   3. Reemplazar NOMBRE en ese archivo (dominio y carpeta)
-#   4. sudo caddy validate --config /etc/caddy/Caddyfile && sudo systemctl reload caddy
-#   5. Cloudflare: agregar el Public Hostname NOMBRE.aysen.app → http://localhost:80
-#      y proteger el dominio en Cloudflare Access.
-http://NOMBRE.aysen.app {
+#   3. Reemplazar NOMBRE y PUERTO en ese archivo
+#   4. sudo caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile && sudo systemctl reload caddy
+#   5. Cloudflare: Public Hostname NOMBRE.aysen.app → http://localhost:PUERTO (mismo túnel)
+#      y proteger el dominio con Cloudflare Access.
+#
+# "estatico" bloquea cámara y micrófono. Si el sitio los necesita (como fichas),
+# define sus propias cabeceras en vez de importar "estatico".
+# NOMBRE.aysen.app → http://localhost:PUERTO
+:PUERTO {
+	bind 127.0.0.1
 	import estatico /srv/NOMBRE/public
 }

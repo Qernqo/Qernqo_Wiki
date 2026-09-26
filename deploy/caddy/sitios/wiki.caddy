@@ -1,5 +1,7 @@
 # Wiki Unidad Soporte TI - Saesa · https://wiki.aysen.app
-http://wiki.aysen.app {
+# El túnel publica wiki.aysen.app → http://localhost:8080
+:8080 {
+	bind 127.0.0.1
 	import comunes
 
 	# Política de contenido: solo recursos propios (la wiki no carga nada externo).
