@@ -118,6 +118,11 @@ sudo systemctl reload caddy
 curl -sI http://127.0.0.1/ | head -1          # → HTTP/1.1 200 OK
 ```
 
+> **Otras aplicaciones en este servidor**: el Caddyfile termina con
+> `import /etc/caddy/sitios/*.caddy`. Cada app que comparta el servidor (por ejemplo Fichas de
+> equipamiento, en `127.0.0.1:8081`) deja ahí su propio archivo, así que volver a copiar este
+> Caddyfile al actualizar la wiki no las borra. Cada una trae su propia guía de instalación.
+
 > Si quieres entrar también directamente desde la red interna (VPC de Vultr), agrega la IP
 > privada del servidor en la línea `bind` del Caddyfile y permite el puerto 80 solo desde esa
 > red: `sudo ufw allow from 10.0.0.0/8 to any port 80 proto tcp` (ajusta el rango).

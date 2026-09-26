@@ -46,3 +46,8 @@
 		file_server
 	}
 }
+
+# Otras aplicaciones del mismo servidor (p. ej. Fichas de equipamiento en 127.0.0.1:8081).
+# Cada una deja aquí su propio archivo, así copiar este Caddyfile no las borra.
+# Si la carpeta no existe o está vacía, Caddy no reclama.
+import /etc/caddy/sitios/*.caddy
