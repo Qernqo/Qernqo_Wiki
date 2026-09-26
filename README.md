@@ -27,8 +27,8 @@ public/            aplicación web (HTML/CSS/JS, sin compilación)
   assets/          logo Saesa y fuente Figtree (OFL)
 server/            API en Node.js sin dependencias externas
   cli.js           definir claves: node server/cli.js clave admin_user
-deploy/            Caddyfile, servicios systemd, respaldo incremental (restic)
-INSTALACION.md     guía paso a paso para Ubuntu en Vultr
+deploy/            caddy/ (base + un archivo por subdominio), servicios systemd, respaldo (restic)
+INSTALACION.md     guía paso a paso para Ubuntu en un VPS OVH (wiki + más subdominios)
 ```
 
 Datos (fuera del repositorio, por defecto `./data`):

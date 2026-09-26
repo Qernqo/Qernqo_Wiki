@@ -195,7 +195,7 @@ async function historial(ficha) {
       h('td', {}, h('strong', {}, `v${v.version}`), v.version === detalle.versionActual ? h('span', { class: 'insignia' }, 'Vigente') : null),
       h('td', {}, fechaLarga(v.fecha)),
       h('td', {}, v.autor),
-      h('td', { class: 'texto-suave' }, `${fechaHora(v.guardado)} · ${v.usuario}`),
+      h('td', { class: 'texto-suave' }, `${fechaHora(v.guardado)}${v.usuario ? ` · ${v.usuario}` : ''}`),
       h(
         'td',
         { class: 'acciones-tabla' },

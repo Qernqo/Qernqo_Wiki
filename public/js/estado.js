@@ -5,6 +5,7 @@ export const estado = {
   usuario: null, // { usuario, rol: 'admin' | 'editor' }
   biblioteca: { arbol: [], fichas: [], maxNiveles: 5 },
   cambiosSinGuardar: false,
+  pedirIngreso: null, // abre el inicio de sesión; devuelve true si se ingresó (lo registra app.js)
 };
 
 export const puedeEditar = () => !!estado.usuario;

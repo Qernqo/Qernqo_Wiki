@@ -7,6 +7,12 @@ const crypto = require('node:crypto');
 const C = require('./config');
 
 const USUARIOS = { admin_user: 'admin', up_user: 'editor' };
+// Solo nombres propios del objeto (evita coincidir con "constructor", "__proto__"…).
+const existe = (usuario) => typeof usuario === 'string' && Object.hasOwn(USUARIOS, usuario);
+
+const MAX_CLAVE = 256;
+const scryptAsync = (clave, sal) =>
+  new Promise((resolve, reject) => crypto.scrypt(clave, sal, 64, (e, k) => (e ? reject(e) : resolve(k.toString('hex')))));
 
 const archivoUsuarios = () => path.join(C.CONFIG, 'usuarios.json');
 
@@ -27,7 +33,7 @@ function hashClave(clave, sal = crypto.randomBytes(16).toString('hex')) {
 }
 
 function fijarClave(usuario, clave) {
-  if (!USUARIOS[usuario]) throw new Error(`Usuario desconocido: ${usuario}`);
+  if (!existe(usuario)) throw new Error(`Usuario desconocido: ${usuario}`);
   if (typeof clave !== 'string' || clave.length < 10) {
     throw new Error('La clave debe tener al menos 10 caracteres');
   }
@@ -39,13 +45,15 @@ function fijarClave(usuario, clave) {
   fs.renameSync(tmp, archivoUsuarios());
 }
 
-function verificar(usuario, clave) {
-  const u = USUARIOS[usuario] && leerUsuarios()[usuario];
-  if (!u || typeof clave !== 'string') {
-    hashClave(String(clave || '')); // mismo costo para no revelar qué usuarios existen
+// Asíncrono (no bloquea el servidor) y con largo máximo de clave.
+async function verificar(usuario, clave) {
+  const u = existe(usuario) && leerUsuarios()[usuario];
+  const claveValida = typeof clave === 'string' && clave.length <= MAX_CLAVE;
+  if (!u || !claveValida) {
+    await scryptAsync('relleno', 'relleno'); // mismo costo para no revelar qué usuarios existen
     return null;
   }
-  const { hash } = hashClave(clave, u.sal);
+  const hash = await scryptAsync(clave, u.sal);
   const ok = crypto.timingSafeEqual(Buffer.from(hash, 'hex'), Buffer.from(u.hash, 'hex'));
   return ok ? { usuario, rol: USUARIOS[usuario] } : null;
 }
@@ -72,7 +80,7 @@ function firmar(datos, u) {
 function crearToken(usuario) {
   const u = leerUsuarios()[usuario];
   const exp = Date.now() + C.SESION_HORAS * 3600e3;
-  const datos = Buffer.from(`${usuario}|${exp}`).toString('base64url');
+  const datos = Buffer.from(`${usuario}|${exp}|${crypto.randomBytes(8).toString('hex')}`).toString('base64url');
   return `${datos}.${firmar(datos, u)}`;
 }
 
@@ -81,13 +89,29 @@ function leerToken(token) {
   const [datos, firma] = token.split('.');
   if (!datos || !firma) return null;
   const [usuario, exp] = Buffer.from(datos, 'base64url').toString().split('|');
-  const u = USUARIOS[usuario] && leerUsuarios()[usuario];
+  const u = existe(usuario) && leerUsuarios()[usuario];
   if (!u) return null;
   const esperada = Buffer.from(firmar(datos, u));
   const recibida = Buffer.from(firma);
   if (esperada.length !== recibida.length || !crypto.timingSafeEqual(esperada, recibida)) return null;
   if (!(Date.now() < Number(exp))) return null;
+  if (revocados.has(firma)) return null;
   return { usuario, rol: USUARIOS[usuario] };
 }
 
-module.exports = { USUARIOS, fijarClave, verificar, crearToken, leerToken, leerUsuarios };
+// Sesiones cerradas con "Cerrar sesión": el token deja de valer aunque no
+// haya expirado (en memoria; al reiniciar el servicio vale la expiración).
+const revocados = new Map();
+function revocar(token) {
+  if (typeof token !== 'string') return;
+  const [datos, firma] = token.split('.');
+  if (!datos || !firma) return;
+  const exp = Number(Buffer.from(datos, 'base64url').toString().split('|')[1]) || Date.now() + C.SESION_HORAS * 3600e3;
+  revocados.set(firma, exp);
+}
+function limpiarRevocados() {
+  const ahora = Date.now();
+  for (const [firma, exp] of revocados) if (exp < ahora) revocados.delete(firma);
+}
+
+module.exports = { USUARIOS, fijarClave, verificar, crearToken, leerToken, leerUsuarios, revocar, limpiarRevocados };

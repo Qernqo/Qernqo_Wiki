@@ -1,0 +1,52 @@
+# /etc/caddy/Caddyfile — configuración base de todos los sitios del servidor.
+# Cada sitio vive en su propio archivo (/etc/caddy/sitios/<sitio>.caddy) y
+# escucha en su PROPIO PUERTO local; el túnel de Cloudflare apunta a ese puerto:
+#
+#   wiki.aysen.app    → http://localhost:8080   (repo qernqo_wiki)
+#   fichas.aysen.app  → http://localhost:8081   (repo qernqo_fichas)
+#   <nuevo>.aysen.app → http://localhost:8082, 8083…
+{
+	# El HTTPS lo pone Cloudflare: Caddy atiende solo HTTP local.
+	auto_https off
+	# Solo accesible desde la propia máquina (cloudflared se conecta a localhost).
+	# Para entrar también desde la red interna agrega la IP privada: default_bind 127.0.0.1 10.0.0.5
+	default_bind 127.0.0.1
+}
+
+# Ajustes comunes a todos los sitios: compresión, cabeceras de seguridad
+# y bloqueo de archivos ocultos (.git, .env, temporales…).
+(comunes) {
+	encode zstd gzip
+	header {
+		X-Content-Type-Options nosniff
+		X-Frame-Options SAMEORIGIN
+		Referrer-Policy same-origin
+		Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=()"
+		# el navegador usará siempre HTTPS con estos dominios (lo entrega Cloudflare)
+		Strict-Transport-Security "max-age=31536000"
+		-Server
+	}
+	@oculto path_regexp oculto /\.
+	handle @oculto {
+		respond 404
+	}
+}
+
+# Sitio de HTML estático. Uso: import estatico /srv/<sitio>/public
+# (bloquea la cámara/micrófono: un sitio que los necesite define sus propias cabeceras)
+(estatico) {
+	import comunes
+	handle {
+		root * {args[0]}
+		# revalidar siempre: al actualizar el sitio los navegadores toman los cambios
+		header Cache-Control "no-cache"
+		file_server
+	}
+}
+
+import /etc/caddy/sitios/*.caddy
+
+# Puerto 80 sin uso: si un hostname del túnel apunta aquí por error, se nota.
+:80 {
+	respond "Sitio no configurado: revisa el puerto del hostname en el túnel de Cloudflare" 404
+}

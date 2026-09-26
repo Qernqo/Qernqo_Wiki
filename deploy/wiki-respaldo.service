@@ -15,3 +15,11 @@ Environment=RESTIC_CACHE_DIR=/var/cache/wiki-restic
 Nice=10
 IOSchedulingClass=idle
 ExecStart=/srv/wiki/app/deploy/respaldo.sh
+
+# endurecimiento: lee los datos, solo escribe en el repositorio de respaldo
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ReadWritePaths=/var/backups/wiki-restic

@@ -4,6 +4,7 @@
 /* global jspdf */
 import { qrPdf } from './qr.js';
 import { blobADataUrl, fechaCorta } from './util.js';
+import { RANGOS_GLIFOS } from './glifos.js';
 
 export const SITIO = 'Wiki Unidad Soporte TI - Saesa';
 
@@ -23,6 +24,55 @@ const M = 16; // margen lateral
 const ANCHO = A4.ancho - M * 2;
 const TOPE = 32; // inicio del contenido bajo el encabezado
 const FONDO = A4.alto - 23; // límite inferior del contenido
+
+// ---------- caracteres que la fuente puede dibujar ----------
+
+const imprimible = (cp) => cp === 10 || RANGOS_GLIFOS.some(([a, b]) => cp >= a && cp <= b);
+
+// Equivalentes para símbolos frecuentes que la fuente no trae.
+const EQUIVALENTES = {
+  '\t': '    ',
+  '→': '->',
+  '←': '<-',
+  '⇒': '=>',
+  '⇐': '<=',
+  '↔': '<->',
+  '≥': '>=',
+  '≤': '<=',
+  '≠': '!=',
+  '✓': 'OK',
+  '✔': 'OK',
+  '✗': 'X',
+  '✘': 'X',
+  '●': '•',
+  '▪': '•',
+  '■': '•',
+  '◦': '•',
+  '►': '>',
+  '▶': '>',
+  '…': '...',
+};
+
+function preparar(texto) {
+  return String(texto ?? '')
+    .normalize('NFC') // "a" + tilde combinable → "á" (texto pegado desde Mac o PDF)
+    .replace(/\r\n?/g, '\n')
+    .replace(/[\u200B-\u200D\uFEFF]/g, '') // caracteres invisibles
+    .replace(/[\t→←⇒⇐↔≥≤≠✓✔✗✘●▪■◦►▶…]/g, (c) => EQUIVALENTES[c]);
+}
+
+// Texto listo para el PDF: equivalentes + "?" para lo que la fuente no puede dibujar.
+export function textoImprimible(texto) {
+  return [...preparar(texto)].map((c) => (imprimible(c.codePointAt(0)) ? c : '?')).join('');
+}
+
+// Caracteres de los datos que no se pueden imprimir (para avisar antes de generar).
+export function caracteresNoImprimibles(datos) {
+  const textos = [datos.nombre, datos.autor, datos.descripcion, ...(datos.tags || []), ...datos.pasos.map((p) => p.texto)];
+  const faltan = new Set();
+  for (const t of textos) for (const c of preparar(t)) if (!imprimible(c.codePointAt(0))) faltan.add(c);
+  return [...faltan];
+}
 
 let recursos;
 async function cargarRecursos() {
@@ -55,11 +105,20 @@ function registrarFuentes(doc, f) {
 const tipoImagen = (src) => (/^data:image\/png/.test(src) ? 'PNG' : 'JPEG');
 
 /**
- * @param {object} datos {nombre, fecha, version, autor, link, tags[], pasos[{texto, imagenes[{src,w,h}]}]}
- * @param {string} categoria texto de la ruta de categoría ("Redes / Switches")
+ * @param {object} datosOriginales {nombre, fecha, version, autor, link, tags[], pasos[{texto, imagenes[{src,w,h}]}]}
+ * @param {string} categoriaOriginal texto de la ruta de categoría ("Redes / Switches")
  * @returns {Promise<jsPDF>}
  */
-export async function crearPdf(datos, categoria) {
+export async function crearPdf(datosOriginales, categoriaOriginal) {
+  const datos = {
+    ...datosOriginales,
+    nombre: textoImprimible(datosOriginales.nombre),
+    autor: textoImprimible(datosOriginales.autor),
+    descripcion: textoImprimible(datosOriginales.descripcion),
+    tags: (datosOriginales.tags || []).map(textoImprimible),
+    pasos: datosOriginales.pasos.map((p) => ({ ...p, texto: textoImprimible(p.texto) })),
+  };
+  const categoria = textoImprimible(categoriaOriginal);
   const { fuentes, logo } = await cargarRecursos();
   const doc = new jspdf.jsPDF({ unit: 'mm', format: 'a4', compress: true });
   registrarFuentes(doc, fuentes);

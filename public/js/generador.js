@@ -16,10 +16,11 @@ import {
   urlImagen,
 } from './util.js';
 import { estado, categoriasPlanas, cargarBiblioteca, textoRuta } from './estado.js';
-import { crearPdf } from './pdf.js';
+import { crearPdf, caracteresNoImprimibles } from './pdf.js';
 import { qrSvg } from './qr.js';
 
 const MAX_IMAGENES = 4;
+const MAX_TAGS = 5;
 const MAX_LADO = 1600; // px
 let contador = 0;
 const nuevoId = () => `p${++contador}`;
@@ -199,11 +200,13 @@ function tarjetaPaso(paso) {
       h('button', { type: 'button', class: 'paso-asa', title: 'Arrastra para reordenar', 'aria-label': 'Arrastrar paso' }, icono('arrastrar')),
       h('span', { class: 'paso-num' }),
       h('strong', { class: 'paso-titulo' }),
+      h('button', { type: 'button', class: 'btn-icono btn-mini paso-mover', title: 'Subir paso', 'aria-label': 'Subir paso', onclick: (e) => moverPaso(paso, -1, e.currentTarget) }, icono('chevron', 'icono-arriba')),
+      h('button', { type: 'button', class: 'btn-icono btn-mini paso-mover', title: 'Bajar paso', 'aria-label': 'Bajar paso', onclick: (e) => moverPaso(paso, 1, e.currentTarget) }, icono('chevron', 'icono-abajo')),
       h(
         'button',
         {
           type: 'button',
-          class: 'btn-icono peligro',
+          class: 'btn-icono peligro paso-eliminar',
           title: 'Eliminar paso',
           'aria-label': 'Eliminar paso',
           onclick: async () => {
@@ -225,6 +228,22 @@ function tarjetaPaso(paso) {
   );
   requestAnimationFrame(() => ajustarAlto(texto));
   return el;
+}
+
+// Alternativa al arrastre (teclado / lector de pantalla).
+function moverPaso(paso, delta, boton) {
+  const i = f.pasos.indexOf(paso);
+  const j = i + delta;
+  if (j < 0 || j >= f.pasos.length) return;
+  [f.pasos[i], f.pasos[j]] = [f.pasos[j], f.pasos[i]];
+  const lista = cont.querySelector('#pasos');
+  const el = lista.querySelector(`.paso[data-id="${paso.id}"]`);
+  const otro = lista.querySelector(`.paso[data-id="${f.pasos[i].id}"]`);
+  if (delta < 0) lista.insertBefore(el, otro);
+  else lista.insertBefore(otro, el);
+  marcarCambios();
+  renumerar();
+  boton.focus();
 }
 
 function ajustarAlto(textarea) {
@@ -275,6 +294,14 @@ function pintarTags() {
       entrada,
     ),
   );
+  const n = f.datos.tags.length;
+  const lleno = n >= MAX_TAGS;
+  entrada.disabled = lleno;
+  entrada.placeholder = lleno ? `Máximo ${MAX_TAGS} tags` : n ? '' : 'Escribe un tag y presiona Enter';
+  zona.classList.toggle('invalido', n > MAX_TAGS);
+  const contador = cont.querySelector('#tags-contador');
+  contador.textContent = `${n} de ${MAX_TAGS} tags`;
+  contador.classList.toggle('lleno', lleno);
 }
 
 function agregarTag(valor) {
@@ -282,9 +309,13 @@ function agregarTag(valor) {
     .split(',')
     .map((t) => t.trim().replace(/\s+/g, ' ').slice(0, 40))
     .filter(Boolean);
+  const omitidos = [];
   for (const t of nuevos) {
-    if (!f.datos.tags.some((x) => x.toLowerCase() === t.toLowerCase()) && f.datos.tags.length < 30) f.datos.tags.push(t);
+    if (f.datos.tags.some((x) => x.toLowerCase() === t.toLowerCase())) continue;
+    if (f.datos.tags.length < MAX_TAGS) f.datos.tags.push(t);
+    else omitidos.push(t);
   }
+  if (omitidos.length) aviso(`Máximo ${MAX_TAGS} tags por procedimiento. No se agregó: ${omitidos.join(', ')}`, 'error');
   marcarCambios();
   pintarTags();
 }
@@ -323,6 +354,7 @@ function validar() {
   if (!d.autor.trim()) errores.push('Ingresa quién elabora el procedimiento ("Elaborado por")');
   marcar('#g-autor', !!d.autor.trim());
   if (!f.categoria.length) errores.push('Selecciona una categoría');
+  if (d.tags.length > MAX_TAGS) errores.push(`Deja como máximo ${MAX_TAGS} tags (hay ${d.tags.length})`);
   marcar('#g-categoria', !!f.categoria.length);
   const linkOk = !d.link.trim() || /^https?:\/\/\S+$/i.test(d.link.trim());
   if (!linkOk) errores.push('El link debe comenzar con http:// o https://');
@@ -347,6 +379,13 @@ function datosParaPdf() {
   };
 }
 
+function avisarCaracteres(datos) {
+  const faltan = caracteresNoImprimibles(datos);
+  if (faltan.length) {
+    aviso(`La fuente del PDF no tiene estos caracteres y se imprimirán como "?": ${faltan.join(' ')}`, 'error');
+  }
+}
+
 function mostrarErrores(errores) {
   const zona = cont.querySelector('#errores');
   zona.hidden = !errores.length;
@@ -361,9 +400,14 @@ async function vistaPrevia(boton) {
   const ventana = window.open('', '_blank');
   boton.disabled = true;
   try {
-    const doc = await crearPdf(datosParaPdf(), textoRuta(f.categoria));
-    if (ventana) ventana.location.href = doc.output('bloburl');
-    else doc.save('vista-previa.pdf');
+    const datos = datosParaPdf();
+    avisarCaracteres(datos);
+    const doc = await crearPdf(datos, textoRuta(f.categoria));
+    if (ventana) {
+      const url = doc.output('bloburl');
+      ventana.location.href = url;
+      setTimeout(() => URL.revokeObjectURL(url), 60e3); // libera memoria cuando ya se abrió
+    } else doc.save('vista-previa.pdf');
   } catch (e) {
     if (ventana) ventana.close();
     aviso(`No se pudo generar el PDF: ${e.message}`, 'error');
@@ -372,7 +416,7 @@ async function vistaPrevia(boton) {
   }
 }
 
-async function guardar(boton) {
+async function guardar(boton, reintento = false) {
   const errores = validar();
   mostrarErrores(errores);
   if (errores.length) return;
@@ -381,18 +425,28 @@ async function guardar(boton) {
   boton.lastChild.textContent = 'Generando PDF…';
   try {
     const datos = datosParaPdf();
+    if (!reintento) avisarCaracteres(datos);
     const doc = await crearPdf(datos, textoRuta(f.categoria));
     const pdf = doc.output('datauristring').split(',')[1];
     boton.lastChild.textContent = 'Guardando…';
     const cuerpo = {
       datos: { ...datos, pasos: datos.pasos.map((p) => ({ texto: p.texto, imagenes: p.imagenes.map((i) => i.src) })) },
       pdf,
+      ...(f.id ? { versionBase: f.versionActual } : {}),
     };
     const r = f.id ? await api('POST', `/api/fichas/${f.id}/versiones`, cuerpo) : await api('POST', '/api/fichas', { ...cuerpo, categoria: f.categoria });
     estado.cambiosSinGuardar = false;
     aviso(f.id ? `Versión ${datos.version} guardada` : 'Procedimiento guardado en la biblioteca');
     location.hash = `#/procedimiento/${r.id}`;
   } catch (e) {
+    // sesión vencida: se pide ingresar de nuevo sin perder el formulario y se reintenta
+    if (e.estado === 401 && !reintento && estado.pedirIngreso) {
+      boton.disabled = false;
+      boton.lastChild.textContent = texto;
+      aviso('Tu sesión expiró. Ingresa de nuevo para guardar; lo que escribiste se mantiene.', 'error');
+      if (await estado.pedirIngreso()) return guardar(boton, true);
+      return;
+    }
     aviso(e.message, 'error');
   } finally {
     boton.disabled = false;
@@ -440,6 +494,7 @@ export async function vistaGenerador(contenedor, id) {
   f = {
     id: id || null,
     versionMayor: null,
+    versionActual: null,
     categoria: [],
     datos: { nombre: '', fecha: hoyISO(), version: '1.0', autor: '', link: '', descripcion: '', tags: [] },
     pasos: [],
@@ -448,7 +503,9 @@ export async function vistaGenerador(contenedor, id) {
   if (id) {
     const detalle = await api('GET', `/api/fichas/${id}`);
     const d = detalle.datos;
-    f.versionMayor = detalle.versiones[0].version; // vienen ordenadas de mayor a menor
+    // la mayor que ha existido (incluidas las de la papelera): el número nunca se reutiliza
+    f.versionMayor = detalle.versionMaxima || detalle.versiones[0].version;
+    f.versionActual = detalle.versionActual;
     f.categoria = detalle.categoria;
     Object.assign(f.datos, { nombre: d.nombre, link: d.link || '', descripcion: d.descripcion || '', tags: [...(d.tags || [])], version: siguienteVersion(f.versionMayor) });
     pasosIniciales = await Promise.all(
@@ -596,7 +653,12 @@ export async function vistaGenerador(contenedor, id) {
               h('span', {}, 'Tags'),
               h('div', { id: 'tags', class: 'campo campo-tags', onclick: () => entradaTag.focus() }, entradaTag),
               h('datalist', { id: 'lista-tags' }, tagsExistentes.map((t) => h('option', { value: t }))),
-              h('small', { class: 'ayuda' }, 'Tags libres para indexar el procedimiento. Separa con Enter o coma.'),
+              h(
+                'small',
+                { class: 'ayuda ayuda-tags' },
+                h('span', {}, `Hasta ${MAX_TAGS} tags libres para indexar el procedimiento. Separa con Enter o coma.`),
+                h('span', { id: 'tags-contador', class: 'contador-tags' }),
+              ),
             ),
           ),
         ),

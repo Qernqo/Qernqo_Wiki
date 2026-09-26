@@ -23,5 +23,6 @@ module.exports = {
   // 1 categoría + 4 subniveles.
   MAX_NIVELES: 5,
   MAX_IMAGENES_PASO: 4,
+  MAX_TAGS: 5,
   SESION_HORAS: 12,
 };

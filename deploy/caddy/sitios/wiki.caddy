@@ -1,0 +1,45 @@
+# Wiki Unidad Soporte TI - Saesa · https://wiki.aysen.app
+# El túnel publica wiki.aysen.app → http://localhost:8080
+:8080 {
+	bind 127.0.0.1
+	import comunes
+
+	# Política de contenido: solo recursos propios (la wiki no carga nada externo).
+	header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' data: blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'"
+
+	# API (Node.js, servicio systemd "wiki").
+	# Solo guardar procedimientos admite cuerpos grandes (PDF + imágenes).
+	@subida {
+		method POST
+		path /api/fichas /api/fichas/*/versiones
+	}
+	handle @subida {
+		request_body {
+			max_size 100MB
+		}
+		reverse_proxy 127.0.0.1:3000
+	}
+	handle /api/* {
+		request_body {
+			max_size 64KB
+		}
+		reverse_proxy 127.0.0.1:3000
+	}
+
+	# PDFs e imágenes de la biblioteca (solo lectura; los .json internos no se publican)
+	handle_path /archivos/* {
+		@interno path *.json
+		respond @interno 404
+		root * /srv/wiki/data/biblioteca
+		header Cache-Control "no-cache"
+		file_server
+	}
+
+	# Aplicación web
+	handle {
+		root * /srv/wiki/app/public
+		try_files {path} /index.html
+		header Cache-Control "no-cache"
+		file_server
+	}
+}
