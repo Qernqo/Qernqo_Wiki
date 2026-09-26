@@ -43,7 +43,12 @@ function leerCookies(req) {
   const cookies = {};
   for (const par of (req.headers.cookie || '').split(';')) {
     const i = par.indexOf('=');
-    if (i > 0) cookies[par.slice(0, i).trim()] = decodeURIComponent(par.slice(i + 1).trim());
+    if (i <= 0) continue;
+    try {
+      cookies[par.slice(0, i).trim()] = decodeURIComponent(par.slice(i + 1).trim());
+    } catch {
+      /* cookie de otro sitio con formato inválido: se ignora */
+    }
   }
   return cookies;
 }
@@ -62,24 +67,38 @@ function ipCliente(req) {
   return req.headers['cf-connecting-ip'] || (req.headers['x-forwarded-for'] || '').split(',')[0].trim() || req.socket.remoteAddress;
 }
 
-function leerCuerpo(req) {
+const LIMITE_PEQUENO = 64 * 1024; // login, categorías, mover… (todo salvo guardar procedimientos)
+const muyGrande = (limite) =>
+  new ErrorApi(413, limite > LIMITE_PEQUENO ? 'El procedimiento es demasiado grande (máximo 95 MB). Reduce la cantidad o el tamaño de las imágenes.' : 'Petición demasiado grande');
+
+function leerCuerpo(req, limite) {
   return new Promise((resolve, reject) => {
+    if (Number(req.headers['content-length']) > limite) {
+      req.resume(); // se descarta sin guardarlo en memoria
+      return reject(muyGrande(limite));
+    }
     const partes = [];
     let total = 0;
+    let excedido = false;
     req.on('data', (c) => {
+      if (excedido) return;
       total += c.length;
-      if (total > C.MAX_BODY) {
-        reject(new ErrorApi(413, 'El procedimiento es demasiado grande'));
-        req.destroy();
+      if (total > limite) {
+        excedido = true;
+        partes.length = 0;
       } else partes.push(c);
     });
     req.on('end', () => {
+      if (excedido) return reject(muyGrande(limite));
       if (!total) return resolve({});
+      let datos;
       try {
-        resolve(JSON.parse(Buffer.concat(partes).toString('utf8')));
+        datos = JSON.parse(Buffer.concat(partes).toString('utf8'));
       } catch {
-        reject(new ErrorApi(400, 'JSON inválido'));
+        return reject(new ErrorApi(400, 'JSON inválido'));
       }
+      if (!datos || typeof datos !== 'object' || Array.isArray(datos)) return reject(new ErrorApi(400, 'JSON inválido'));
+      resolve(datos);
     });
     req.on('error', reject);
   });
@@ -106,6 +125,12 @@ function registrarFallo(ip) {
   else r.n++;
 }
 
+setInterval(() => {
+  const ahora = Date.now();
+  for (const [ip, r] of intentos) if (ahora - r.desde > 15 * 60e3) intentos.delete(ip);
+  auth.limpiarRevocados();
+}, 10 * 60e3).unref();
+
 // ---------- rutas de la API ----------
 
 const EDITOR = 'editor';
@@ -118,11 +143,11 @@ const rutas = [
     'POST',
     /^\/api\/login$/,
     null,
-    (ctx) => {
+    async (ctx) => {
       const ip = ipCliente(ctx.req);
       controlarIntentos(ip);
-      const usuario = String(ctx.body.usuario || '').trim().toLowerCase();
-      const u = auth.verificar(usuario, ctx.body.clave);
+      const usuario = String(ctx.body.usuario || '').trim().toLowerCase().slice(0, 40);
+      const u = await auth.verificar(usuario, ctx.body.clave);
       if (!u) {
         registrarFallo(ip);
         throw new ErrorApi(401, 'Usuario o clave incorrectos');
@@ -139,6 +164,7 @@ const rutas = [
     /^\/api\/logout$/,
     null,
     (ctx) => {
+      auth.revocar(leerCookies(ctx.req).wiki_sesion);
       ctx.cabeceras['Set-Cookie'] = cookieSesion(ctx.req, '', 0);
       return { ok: true };
     },
@@ -154,7 +180,7 @@ const rutas = [
     },
   ],
 
-  ['GET', /^\/api\/fichas\/([\w-]+)$/, null, (ctx) => bib.detalleFicha(ctx.p[0], ctx.query.get('version'))],
+  ['GET', /^\/api\/fichas\/([\w-]+)$/, null, (ctx) => bib.detalleFicha(ctx.p[0], ctx.query.get('version'), !!ctx.usuario)],
 
   [
     'POST',
@@ -165,6 +191,7 @@ const rutas = [
       auditar(ctx.usuario.usuario, 'crear-ficha', r);
       return r;
     },
+    { cuerpo: C.MAX_BODY },
   ],
 
   [
@@ -176,6 +203,7 @@ const rutas = [
       auditar(ctx.usuario.usuario, 'nueva-version', r);
       return r;
     },
+    { cuerpo: C.MAX_BODY },
   ],
 
   [
@@ -252,8 +280,8 @@ const rutas = [
     ADMIN,
     (ctx) => {
       const meta = bib.restaurar(ctx.p[0]);
-      auditar(ctx.usuario.usuario, 'restaurar', { tipo: meta.tipo, nombre: meta.nombre });
-      return { ok: true };
+      auditar(ctx.usuario.usuario, 'restaurar', { tipo: meta.tipo, nombre: meta.nombre, reubicado: meta.reubicado });
+      return { ok: true, reubicado: meta.reubicado || null };
     },
   ],
 
@@ -289,14 +317,18 @@ async function manejarApi(req, res, url) {
       const m = r[1].exec(url.pathname);
       if (m) {
         ruta = r;
-        p = m.slice(1).map(decodeURIComponent);
+        try {
+          p = m.slice(1).map(decodeURIComponent);
+        } catch {
+          throw new ErrorApi(400, 'Ruta inválida');
+        }
         break;
       }
     }
     if (!ruta) throw new ErrorApi(404, 'Ruta no encontrada');
 
     const usuario = auth.leerToken(leerCookies(req).wiki_sesion);
-    const [, , rol, fn] = ruta;
+    const [, , rol, fn, opciones = {}] = ruta;
     if (rol && !usuario) throw new ErrorApi(401, 'Debes ingresar para realizar esta acción');
     if (rol === ADMIN && usuario.rol !== ADMIN) throw new ErrorApi(403, 'Solo el administrador puede realizar esta acción');
 
@@ -306,12 +338,15 @@ async function manejarApi(req, res, url) {
       if (req.headers['x-wiki'] !== '1' || !/^application\/json/.test(req.headers['content-type'] || '')) {
         throw new ErrorApi(400, 'Petición inválida');
       }
-      body = await leerCuerpo(req);
+      body = await leerCuerpo(req, opciones.cuerpo || LIMITE_PEQUENO);
     }
     const resultado = await fn({ req, p, body, usuario, cabeceras, query: url.searchParams });
     responder(res, 200, resultado, cabeceras);
   } catch (e) {
-    if (e instanceof ErrorApi) return responder(res, e.estado, { error: e.message }, cabeceras);
+    if (e instanceof ErrorApi) {
+      if (e.estado === 413) cabeceras.Connection = 'close';
+      return responder(res, e.estado, { error: e.message }, cabeceras);
+    }
     console.error(e);
     responder(res, 500, { error: 'Error interno del servidor' }, cabeceras);
   }
@@ -350,13 +385,23 @@ function servirArchivo(req, res, base, relativa, respaldoSpa) {
 }
 
 const servidor = http.createServer((req, res) => {
-  const url = new URL(req.url, 'http://localhost');
+  let url;
+  try {
+    url = new URL(req.url, 'http://localhost');
+  } catch {
+    res.writeHead(400, { 'Content-Type': 'text/plain; charset=utf-8' }).end('Petición inválida');
+    return;
+  }
   if (url.pathname.startsWith('/api/')) return manejarApi(req, res, url);
   if (!C.SERVIR_ESTATICOS || !['GET', 'HEAD'].includes(req.method)) {
     res.writeHead(404).end();
     return;
   }
   if (url.pathname.startsWith('/archivos/')) {
+    if (/\.json$/i.test(url.pathname)) {
+      res.writeHead(404).end();
+      return;
+    }
     return servirArchivo(req, res, C.BIBLIOTECA, url.pathname.slice('/archivos'.length), false);
   }
   servirArchivo(req, res, C.PUBLIC_DIR, url.pathname, true);

@@ -185,6 +185,8 @@ sudo apt update && sudo apt install -y cloudflared
 3. Política **Allow** → *Include* → **Emails ending in** `@saesa.cl`
    (o *Emails* con la lista exacta de correos autorizados).
 4. Método de login: **One-time PIN** (código enviado al correo).
+5. En el panel del dominio: **SSL/TLS → Edge Certificates → Always Use HTTPS = activado**.
+   La wiki marca su cookie de sesión como solo-HTTPS (`WIKI_COOKIE_SECURE=1`).
 
 > Los nombres de los menús de Cloudflare pueden variar levemente, pero los pasos son los mismos.
 
@@ -239,12 +241,19 @@ sudo rm -r /tmp/wiki-restaurar
 sudo systemctl start wiki
 ```
 
-### 9.4 Protección fuera del servidor
+### 9.4 Protección fuera del servidor (obligatorio)
 
-Este respaldo vive **en el mismo disco**: protege ante borrados o errores, pero no ante la
-pérdida del servidor. Mientras no uses otro destino, activa en el panel de OVH la opción de
-**respaldo automático** del VPS (*Automated Backup*) o toma **snapshots** periódicos: copian el
-disco completo fuera de la máquina.
+Este respaldo vive **en el mismo disco**: protege ante borrados o errores, pero **no** ante la
+pérdida del servidor. Mientras no uses otro destino, **activa en el panel de OVH la opción de
+respaldo automático del VPS** (*Automated Backup*) o programa **snapshots** periódicos: copian el
+disco completo fuera de la máquina. No omitas este paso.
+
+Revisa de vez en cuando que el respaldo diario terminó bien (no envía avisos):
+
+```bash
+systemctl status wiki-respaldo --no-pager     # "status=0/SUCCESS" = correcto
+journalctl -u wiki-respaldo -n 20 --no-pager  # "ADVERTENCIA" = copia creada con algún archivo omitido
+```
 
 Cuando quieras respaldar fuera (OVHcloud Object Storage u otro S3), solo cambia en
 `/etc/systemd/system/wiki-respaldo.service` la línea `RESTIC_REPOSITORY=` por el destino

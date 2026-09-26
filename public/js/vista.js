@@ -60,7 +60,7 @@ export async function vistaProcedimiento(cont, id, version) {
         { class: 'proc-version-info' },
         h('strong', {}, `v${v.version}`, v.version === detalle.versionActual ? h('span', { class: 'insignia' }, 'Vigente') : null),
         h('small', {}, `${fechaLarga(v.fecha)} · ${v.autor}`),
-        h('small', { class: 'texto-suave' }, `Guardado ${fechaHora(v.guardado)} · ${v.usuario}`),
+        h('small', { class: 'texto-suave' }, `Guardado ${fechaHora(v.guardado)}${v.usuario ? ` · ${v.usuario}` : ''}`),
       ),
       h(
         'div',

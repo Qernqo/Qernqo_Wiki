@@ -14,13 +14,30 @@ Restart=on-failure
 RestartSec=3
 # archivos legibles por Caddy (grupo/otros solo lectura)
 UMask=0022
+# tope de memoria: si algo se descontrola, se reinicia el servicio y no el servidor
+MemoryMax=1G
 
 # endurecimiento
 NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=true
 PrivateTmp=true
+PrivateDevices=true
 ReadWritePaths=/srv/wiki/data
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictNamespaces=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+LockPersonality=true
+CapabilityBoundingSet=
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
 
 [Install]
 WantedBy=multi-user.target

@@ -12,10 +12,16 @@ DATA_DIR="${WIKI_DATA_DIR:-/srv/wiki/data}"
 export RESTIC_REPOSITORY="${RESTIC_REPOSITORY:-/var/backups/wiki-restic}"
 export RESTIC_PASSWORD_FILE="${RESTIC_PASSWORD_FILE:-/etc/wiki/restic.pass}"
 
-# crear el repositorio la primera vez
-if ! restic cat config >/dev/null 2>&1; then
-  echo "Inicializando repositorio de respaldo en $RESTIC_REPOSITORY"
-  restic init
+# ¿Existe el repositorio? Solo se crea si realmente no existe; cualquier otro
+# error (clave incorrecta, permisos, red) se informa tal cual y detiene el respaldo.
+if ! error=$(restic cat config 2>&1 >/dev/null); then
+  if grep -qiE 'does not exist|no such file|Is there a repository' <<<"$error"; then
+    echo "Inicializando repositorio de respaldo en $RESTIC_REPOSITORY"
+    restic init
+  else
+    echo "ERROR: no se pudo abrir el repositorio de respaldo: $error" >&2
+    exit 1
+  fi
 fi
 
 incluir=()
@@ -23,7 +29,16 @@ for d in biblioteca papelera config; do
   [[ -d "$DATA_DIR/$d" ]] && incluir+=("$DATA_DIR/$d")
 done
 
-restic backup --tag wiki --host wiki "${incluir[@]}"
+# Código 3 = copia creada, pero algún archivo no se pudo leer (p. ej. un
+# temporal que desapareció durante la copia): se avisa y se continúa.
+codigo=0
+restic backup --tag wiki --host wiki "${incluir[@]}" || codigo=$?
+if [[ $codigo -eq 3 ]]; then
+  echo "ADVERTENCIA: respaldo creado, pero algunos archivos no se pudieron leer (ver arriba)" >&2
+elif [[ $codigo -ne 0 ]]; then
+  echo "ERROR: el respaldo falló (código $codigo)" >&2
+  exit "$codigo"
+fi
 
 # retención: 7 diarios, 4 semanales y 6 mensuales
 restic forget --tag wiki --host wiki --keep-daily 7 --keep-weekly 4 --keep-monthly 6 --prune

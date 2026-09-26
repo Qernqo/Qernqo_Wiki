@@ -962,8 +962,8 @@ button.chip:hover {
   gap: 10px;
   margin-bottom: 10px;
 }
-.paso-cabecera .btn-icono {
-  margin-left: auto;
+.paso-cabecera .paso-titulo {
+  margin-right: auto;
 }
 .paso-asa {
   border: 0;
@@ -1578,4 +1578,15 @@ button.chip:hover {
 .tag-entrada:disabled {
   background: transparent;
   cursor: not-allowed;
+}
+
+/* flechas para subir / bajar pasos */
+.paso-mover {
+  color: var(--texto-suave);
+}
+.icono-arriba {
+  transform: rotate(-90deg);
+}
+.icono-abajo {
+  transform: rotate(90deg);
 }

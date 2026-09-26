@@ -55,6 +55,15 @@ function slug(texto) {
   );
 }
 
+// Nombres internos de un procedimiento: no pueden usarse como categoría.
+const RESERVADO = /^(ficha\.json|datos\.json|img|v\d+\.\d+)$/i;
+
+function nombreCategoria(nombre) {
+  const n = limpiarNombre(nombre);
+  if (RESERVADO.test(n)) falla(400, `"${n}" es un nombre reservado del sistema`);
+  return n;
+}
+
 function rutaSegura(segmentos) {
   if (!Array.isArray(segmentos)) falla(400, 'Ruta inválida');
   for (const s of segmentos) {
@@ -64,7 +73,7 @@ function rutaSegura(segmentos) {
     } catch {
       limpio = null;
     }
-    if (s !== limpio) falla(400, 'Ruta inválida');
+    if (s !== limpio || RESERVADO.test(s)) falla(400, 'Ruta inválida');
   }
   const p = path.resolve(C.BIBLIOTECA, ...segmentos);
   if (p !== C.BIBLIOTECA && !p.startsWith(C.BIBLIOTECA + path.sep)) falla(400, 'Ruta inválida');
@@ -78,12 +87,33 @@ const esDirectorio = (p) => {
     return false;
   }
 };
-const esFicha = (dir) => fs.existsSync(path.join(dir, 'ficha.json'));
+const esFicha = (dir) => {
+  try {
+    return fs.statSync(path.join(dir, 'ficha.json')).isFile();
+  } catch {
+    return false;
+  }
+};
 
+// Una categoría válida es una carpeta en la que ningún nivel (ella incluida)
+// es un procedimiento: impide crear/mover cosas dentro de un procedimiento.
 function dirCategoria(segmentos) {
   const dir = rutaSegura(segmentos);
-  if (!segmentos.length || !esDirectorio(dir) || esFicha(dir)) falla(404, 'La categoría no existe');
+  if (!segmentos.length || !esDirectorio(dir)) falla(404, 'La categoría no existe');
+  for (let i = 1; i <= segmentos.length; i++) {
+    if (esFicha(path.join(C.BIBLIOTECA, ...segmentos.slice(0, i)))) falla(404, 'La categoría no existe');
+  }
   return dir;
+}
+
+// ¿Existe ya un elemento con ese nombre (sin distinguir mayúsculas) en la carpeta?
+function nombreOcupado(dirPadre, nombre, excepto) {
+  const n = nombre.toLocaleLowerCase('es');
+  try {
+    return fs.readdirSync(dirPadre).some((x) => x !== excepto && x.toLocaleLowerCase('es') === n);
+  } catch {
+    return false;
+  }
 }
 
 function leerJson(archivo) {
@@ -92,7 +122,13 @@ function leerJson(archivo) {
 
 function escribirJson(archivo, datos) {
   const tmp = `${archivo}.${crypto.randomBytes(3).toString('hex')}.tmp`;
-  fs.writeFileSync(tmp, JSON.stringify(datos, null, 2));
+  const fd = fs.openSync(tmp, 'w');
+  try {
+    fs.writeFileSync(fd, JSON.stringify(datos, null, 2));
+    fs.fsyncSync(fd);
+  } finally {
+    fs.closeSync(fd);
+  }
   fs.renameSync(tmp, archivo);
 }
 
@@ -107,7 +143,7 @@ const urlArchivo = (segmentos) => '/archivos/' + segmentos.map(encodeURIComponen
 // ---------- versiones (X.Y, con Y entre 0 y 9) ----------
 
 function parseVersion(v) {
-  const m = /^(\d{1,3})\.(\d)$/.exec(String(v));
+  const m = /^(0|[1-9]\d{0,2})\.(\d)$/.exec(String(v));
   return m ? [Number(m[1]), Number(m[2])] : null;
 }
 function compararVersion(a, b) {
@@ -115,6 +151,10 @@ function compararVersion(a, b) {
   return x[0] - y[0] || x[1] - y[1];
 }
 const versionMayor = (lista) => lista.reduce((m, v) => (compararVersion(v, m) > 0 ? v : m));
+// La mayor versión que ha existido (incluidas las enviadas a la papelera):
+// un número de versión nunca se reutiliza.
+const maximaHistorica = (f) =>
+  versionMayor([...f.versiones.map((v) => v.version), ...(parseVersion(f.versionMaxima) ? [f.versionMaxima] : [])]);
 
 // ---------- índice ----------
 
@@ -244,10 +284,13 @@ function decodificarPdf(base64) {
 }
 
 function validarDatos(d) {
-  if (!d || typeof d !== 'object') falla(400, 'Datos inválidos');
+  if (!d || typeof d !== 'object' || Array.isArray(d)) falla(400, 'Datos inválidos');
   const nombre = texto(d.nombre, 150, 'el nombre');
   const fecha = texto(d.fecha, 10, 'la fecha');
   if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha)) falla(400, 'Fecha inválida');
+  const [anio, mes, dia] = fecha.split('-').map(Number);
+  const real = new Date(Date.UTC(anio, mes - 1, dia));
+  if (real.getUTCMonth() !== mes - 1 || real.getUTCDate() !== dia) falla(400, 'Fecha inválida');
   const version = texto(d.version, 8, 'la versión');
   if (!parseVersion(version)) falla(400, 'Versión inválida: usa el formato X.Y (Y entre 0 y 9)');
   const autor = texto(d.autor, 80, '"Elaborado por"');
@@ -368,64 +411,82 @@ function crearFicha({ categoria, datos, pdf }, usuario) {
   const dirCat = dirCategoria(categoria);
   const d = validarDatos(datos);
   const bufPdf = decodificarPdf(pdf);
-  const dir = path.join(dirCat, nombreLibre(dirCat, slug(d.nombre)));
-  fs.mkdirSync(dir);
+  // se arma en una carpeta oculta y se mueve completa al final: una caída a
+  // medio camino no deja un procedimiento incompleto visible
+  const tmp = path.join(dirCat, `.nueva-${crypto.randomBytes(4).toString('hex')}`);
+  fs.mkdirSync(tmp);
   try {
-    const r = escribirVersion(dir, d, bufPdf, usuario);
+    const r = escribirVersion(tmp, d, bufPdf, usuario);
     const ficha = {
       id: crypto.randomUUID(),
       versionActual: d.version,
+      versionMaxima: d.version,
       creado: r.guardado,
       actualizado: r.guardado,
       versiones: [entradaVersion(r)],
     };
-    escribirJson(path.join(dir, 'ficha.json'), ficha);
+    escribirJson(path.join(tmp, 'ficha.json'), ficha);
+    fs.renameSync(tmp, path.join(dirCat, nombreLibre(dirCat, slug(d.nombre))));
     invalidar();
     return { id: ficha.id, version: d.version };
   } catch (e) {
-    fs.rmSync(dir, { recursive: true, force: true });
+    fs.rmSync(tmp, { recursive: true, force: true });
     throw e;
   }
 }
 
-function nuevaVersion(id, { datos, pdf }, usuario) {
+function nuevaVersion(id, { datos, pdf, versionBase }, usuario) {
   const { dir } = ubicar(id);
   const archivo = path.join(dir, 'ficha.json');
   const f = leerJson(archivo);
+  // otro editor guardó una versión mientras este editaba: no pisar sus cambios
+  if (versionBase != null && versionBase !== f.versionActual) {
+    falla(409, `Mientras editabas se guardó la versión ${f.versionActual}. Recarga el procedimiento para ver esos cambios antes de guardar.`);
+  }
   const d = validarDatos(datos);
   const bufPdf = decodificarPdf(pdf);
-  const mayor = versionMayor(f.versiones.map((v) => v.version));
+  const mayor = maximaHistorica(f);
   if (compararVersion(d.version, mayor) <= 0) falla(400, `La versión debe ser mayor que ${mayor}`);
+  // carpeta de una versión que quedó a medias por una caída: se aparta
+  const final = path.join(dir, `v${d.version}`);
+  if (fs.existsSync(final)) fs.renameSync(final, path.join(dir, `.huerfana-${Date.now()}-v${d.version}`));
   const r = escribirVersion(dir, d, bufPdf, usuario, path.join(dir, `v${f.versionActual}`));
   f.versiones.push(entradaVersion(r));
   f.versionActual = d.version;
+  f.versionMaxima = d.version;
   f.actualizado = r.guardado;
   escribirJson(archivo, f);
   invalidar();
   return { id, version: d.version };
 }
 
-function detalleFicha(id, version) {
+function detalleFicha(id, version, conSesion = false) {
   const { dir, segmentos } = ubicar(id);
   const f = leerJson(path.join(dir, 'ficha.json'));
   const v = version || f.versionActual;
   if (!f.versiones.some((x) => x.version === v)) falla(404, 'La versión no existe');
-  const datos = leerJson(path.join(dir, `v${v}`, 'datos.json'));
+  const { guardadoPor, ...datos } = leerJson(path.join(dir, `v${v}`, 'datos.json'));
+  // las cuentas internas (up_user / admin_user) solo se muestran con sesión
+  const versiones = f.versiones.map(({ usuario, ...x }) => ({
+    ...x,
+    ...(conSesion ? { usuario } : {}),
+    url: urlArchivo([...segmentos, `v${x.version}`, x.pdf]),
+  }));
   return {
     id: f.id,
     categoria: segmentos.slice(0, -1),
     versionActual: f.versionActual,
+    versionMaxima: maximaHistorica(f),
     base: urlArchivo([...segmentos, `v${v}`]) + '/',
-    datos,
-    versiones: f.versiones
-      .map((x) => ({ ...x, url: urlArchivo([...segmentos, `v${x.version}`, x.pdf]) }))
-      .sort((a, b) => compararVersion(b.version, a.version)),
+    datos: conSesion ? { ...datos, guardadoPor } : datos,
+    versiones: versiones.sort((a, b) => compararVersion(b.version, a.version)),
   };
 }
 
 function moverFicha(id, categoria) {
   const { dir, segmentos } = ubicar(id);
   const dirCat = dirCategoria(categoria);
+  if (dirCat === dir || dirCat.startsWith(dir + path.sep)) falla(400, 'No se puede mover un procedimiento dentro de sí mismo');
   if (path.dirname(dir) === dirCat) return { id };
   fs.renameSync(dir, path.join(dirCat, nombreLibre(dirCat, segmentos.at(-1))));
   invalidar();
@@ -458,7 +519,11 @@ function eliminarVersion(id, version, usuario) {
   const i = f.versiones.findIndex((v) => v.version === version);
   if (i < 0) falla(404, 'La versión no existe');
   if (f.versiones.length === 1) falla(400, 'Es la única versión: elimina el procedimiento completo');
+  f.versionMaxima = maximaHistorica(f); // no baja al eliminar: el número no se reutiliza
   const [entrada] = f.versiones.splice(i, 1);
+  f.versionActual = versionMayor(f.versiones.map((v) => v.version));
+  // primero se actualiza ficha.json: si algo falla después, la versión vigente sigue siendo válida
+  escribirJson(archivo, f);
   aPapelera(path.join(dir, `v${version}`), {
     tipo: 'version',
     fichaId: id,
@@ -468,8 +533,6 @@ function eliminarVersion(id, version, usuario) {
     origen: segmentos,
     usuario,
   });
-  f.versionActual = versionMayor(f.versiones.map((v) => v.version));
-  escribirJson(archivo, f);
   invalidar();
 }
 
@@ -501,9 +564,16 @@ function restaurar(idPapelera) {
   const contenido = path.join(dir, 'contenido');
   if (meta.tipo === 'ficha') {
     if (indice().porId.has(meta.fichaId)) falla(409, 'El procedimiento ya existe en la biblioteca');
-    const padre = meta.origen.slice(0, -1);
-    const dirPadre = rutaSegura(padre);
-    fs.mkdirSync(dirPadre, { recursive: true });
+    let padre = meta.origen.slice(0, -1);
+    let dirPadre;
+    try {
+      dirPadre = dirCategoria(padre);
+    } catch {
+      padre = ['Restaurados'];
+      dirPadre = rutaSegura(padre);
+      fs.mkdirSync(dirPadre, { recursive: true });
+      meta.reubicado = padre;
+    }
     fs.renameSync(contenido, path.join(dirPadre, nombreLibre(dirPadre, meta.origen.at(-1))));
   } else {
     let u;
@@ -536,13 +606,14 @@ function purgar(idPapelera) {
 // ---------- categorías ----------
 
 function crearCategoria(padre, nombre) {
-  if (padre.length) dirCategoria(padre);
-  const ruta = [...padre, limpiarNombre(nombre)];
+  if (!Array.isArray(padre)) falla(400, 'Ruta inválida');
+  const dirPadre = padre.length ? dirCategoria(padre) : C.BIBLIOTECA;
+  const ruta = [...padre, nombreCategoria(nombre)];
   if (ruta.length > C.MAX_NIVELES) {
     falla(400, `Máximo ${C.MAX_NIVELES} niveles (categoría + ${C.MAX_NIVELES - 1} subniveles)`);
   }
   const dir = rutaSegura(ruta);
-  if (fs.existsSync(dir)) falla(409, 'Ya existe una categoría con ese nombre');
+  if (nombreOcupado(dirPadre, ruta.at(-1))) falla(409, 'Ya existe una categoría con ese nombre');
   fs.mkdirSync(dir, { recursive: true });
   invalidar();
   return { ruta };
@@ -550,10 +621,10 @@ function crearCategoria(padre, nombre) {
 
 function renombrarCategoria(ruta, nombre) {
   const dir = dirCategoria(ruta);
-  const nueva = [...ruta.slice(0, -1), limpiarNombre(nombre)];
+  const nueva = [...ruta.slice(0, -1), nombreCategoria(nombre)];
   const destino = rutaSegura(nueva);
-  const soloMayusculas = destino.toLowerCase() === dir.toLowerCase();
-  if (destino !== dir && fs.existsSync(destino) && !soloMayusculas) falla(409, 'Ya existe una categoría con ese nombre');
+  if (destino === dir) return { ruta: nueva };
+  if (nombreOcupado(path.dirname(dir), nueva.at(-1), ruta.at(-1))) falla(409, 'Ya existe una categoría con ese nombre');
   fs.renameSync(dir, destino);
   invalidar();
   return { ruta: nueva };

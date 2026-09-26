@@ -54,9 +54,12 @@ async function ingresar() {
   if (ok) {
     aviso(`Bienvenido, ${estado.usuario.usuario}`);
     pintarCabecera();
-    enrutar();
+    // con el formulario del generador abierto no se recarga la vista: se perdería lo no guardado
+    if (!document.querySelector('#g-nombre')) enrutar();
   }
+  return !!ok;
 }
+estado.pedirIngreso = ingresar;
 
 async function salir() {
   await api('POST', '/api/logout');
@@ -115,8 +118,8 @@ async function vistaPapelera(cont) {
   const { elementos } = await api('GET', '/api/papelera');
   const accion = async (fn, msg) => {
     try {
-      await fn();
-      aviso(msg);
+      const r = await fn();
+      aviso(r && r.reubicado ? `Restaurado en la categoría "${textoRuta(r.reubicado)}" porque su categoría original ya no existe` : msg);
       await cargarBiblioteca();
       vistaPapelera(cont);
     } catch (e) {

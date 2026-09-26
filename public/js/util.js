@@ -81,6 +81,9 @@ export async function api(metodo, ruta, cuerpo) {
   } catch {
     /* respuesta vacía */
   }
+  if (r.status === 413 && !datos.error) {
+    datos.error = 'El contenido es demasiado grande (máximo 95 MB). Reduce la cantidad o el tamaño de las imágenes.';
+  }
   if (!r.ok) throw new ErrorApi(r.status, datos.error || `Error ${r.status}`);
   return datos;
 }
@@ -117,7 +120,7 @@ export function fechaHora(iso) {
 // ---------- versiones X.Y (Y de 0 a 9) ----------
 
 export function parseVersion(v) {
-  const m = /^(\d{1,3})\.(\d)$/.exec(String(v).trim());
+  const m = /^(0|[1-9]\d{0,2})\.(\d)$/.exec(String(v).trim());
   return m ? [Number(m[1]), Number(m[2])] : null;
 }
 export function compararVersion(a, b) {
@@ -154,7 +157,20 @@ export function modal({ titulo, contenido, botones = [], ancho = '' }) {
       resolve(valor);
     };
     const teclado = (e) => {
+      if ([...document.querySelectorAll('.modal-fondo')].at(-1) !== fondo) return; // solo el modal de arriba
       if (e.key === 'Escape') cerrar(null);
+      if (e.key === 'Tab') {
+        const enfocables = [...caja.querySelectorAll('button, input, select, textarea, a[href]')].filter((x) => !x.disabled);
+        if (!enfocables.length) return;
+        const [primero, ultimo] = [enfocables[0], enfocables.at(-1)];
+        if (e.shiftKey && document.activeElement === primero) {
+          e.preventDefault();
+          ultimo.focus();
+        } else if (!e.shiftKey && document.activeElement === ultimo) {
+          e.preventDefault();
+          primero.focus();
+        }
+      }
     };
     const pie = h(
       'div',

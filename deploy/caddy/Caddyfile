@@ -18,6 +18,9 @@
 		X-Content-Type-Options nosniff
 		X-Frame-Options SAMEORIGIN
 		Referrer-Policy same-origin
+		Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=()"
+		# el navegador usará siempre HTTPS con estos dominios (lo entrega Cloudflare)
+		Strict-Transport-Security "max-age=31536000"
 		-Server
 	}
 	@oculto path_regexp oculto /\.
