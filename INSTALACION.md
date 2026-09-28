@@ -1,40 +1,42 @@
-# Instalación en VPS OVH (Ubuntu 24.04 LTS)
+# Instalación en servidor local con Docker (Ubuntu Server)
 
 Arquitectura final:
 
 ```
-Usuario ─► Cloudflare Access (login por correo) ─► Túnel Cloudflare ─► cloudflared (en el servidor)
-        ─┬─ wiki.aysen.app    → Caddy 127.0.0.1:8080 ─┬─ /            → /srv/wiki/app/public
-         │                                             ├─ /archivos/*  → /srv/wiki/data/biblioteca
-         │                                             └─ /api/*       → Node.js :3000 (systemd: wiki)
-         ├─ fichas.aysen.app  → Caddy 127.0.0.1:8081 ─── /srv/fichas/app/dist   (repo qernqo_fichas)
-         └─ <nuevo>.aysen.app → Caddy 127.0.0.1:8082… ── /srv/<nuevo>/public
+Usuario ─► Cloudflare Access (login por correo) ─► Túnel Cloudflare
+                                                       │
+  Servidor local (Docker) ─────────────────────────────┼──────────────────────────────
+                                                       ▼
+                               contenedor cloudflared ─► contenedor caddy :8080
+                                                            ├─ /            → public/ (del repo)
+                                                            ├─ /archivos/*  → /srv/wiki/data/biblioteca
+                                                            └─ /api/*       → contenedor wiki :3000 (Node.js)
+
+  /srv/wiki/data  ◄── restic (en el servidor) ──► disco USB externo, todos los días a las 02:30
 ```
 
-- **No se abren puertos** a Internet: el túnel sale desde el servidor hacia Cloudflare.
-- El HTTPS lo pone Cloudflare; Caddy trabaja solo en HTTP local.
-- El backend **no usa dependencias npm**: basta con Node.js.
-- La wiki es la **base inicial** del servidor: Caddy queda preparado para agregar más
-  subdominios (sección 12). **Cada sitio tiene su propio puerto local** (wiki 8080, fichas 8081,
-  los siguientes 8082, 8083…) y el túnel de Cloudflare apunta cada hostname a su puerto.
+- **No se abren puertos**, ni en el router ni en el servidor, y **no se necesita IP pública**:
+  el túnel sale desde el servidor hacia Cloudflare.
+- El HTTPS lo pone Cloudflare; dentro del servidor todo viaja en HTTP por la red de Docker.
+- El contenedor `wiki` **no tiene salida a Internet**; solo Caddy lo alcanza.
+- Los contenedores corren con el sistema de archivos en solo lectura, sin privilegios y con
+  límite de memoria. Se reinician solos si fallan o si el servidor se reinicia.
+- Los datos (biblioteca, papelera, claves) viven **fuera de los contenedores**, en
+  `/srv/wiki/data`: se pueden respaldar, copiar o mover como carpetas normales.
 
 Todos los comandos se ejecutan como un usuario con `sudo`.
 
-### Tamaño del servidor
+### Tamaño
 
-Todo (sistema, biblioteca y respaldos) queda en el disco del servidor. Estimación para
-~500 procedimientos con 10 imágenes cada uno e historial de versiones:
+Estimación para ~500 procedimientos con 10 imágenes cada uno e historial de versiones:
 
-| Uso                                                   | Estimado |
-|-------------------------------------------------------|----------|
-| Sistema, Node.js, Caddy                               | ~5 GB    |
-| Biblioteca (las imágenes repetidas entre versiones no se duplican) | ~5 GB |
-| Respaldo incremental (restic)                         | ~6 GB    |
-| Margen de crecimiento                                 | ~15 GB   |
+| Uso                                                                | Estimado |
+|--------------------------------------------------------------------|----------|
+| Sistema, Docker e imágenes (Node, Caddy, cloudflared)              | ~6 GB    |
+| Biblioteca (las imágenes repetidas entre versiones no se duplican) | ~5 GB    |
+| Respaldo incremental (en el USB)                                   | ~6 GB    |
 
-**Recomendado: 50 GB de disco o más.** El VPS de OVH (4 vCore, 4 GB RAM, 75 GB) cumple con
-holgura, también para sumar fichas y otros sitios estáticos. Revisa el uso real con
-`du -sh /srv/wiki/data/biblioteca` y `df -h /`.
+Memoria: la wiki usa ~100–200 MB; el conjunto funciona con holgura en 2 GB de RAM o más.
 
 ---
 
@@ -42,162 +44,118 @@ holgura, también para sumar fichas y otros sitios estáticos. Revisa el uso rea
 
 ```bash
 sudo apt update && sudo apt upgrade -y
-sudo apt install -y git curl gpg rsync restic debian-keyring debian-archive-keyring apt-transport-https ufw
+sudo apt install -y git ca-certificates curl unattended-upgrades
 sudo timedatectl set-timezone America/Santiago
+sudo dpkg-reconfigure -plow unattended-upgrades   # actualizaciones de seguridad automáticas
 ```
 
-Firewall (solo SSH; el túnel no necesita puertos de entrada):
+El servidor debe quedar encendido y sin suspensión. En un equipo de escritorio o notebook
+usado como servidor:
 
 ```bash
-sudo ufw allow OpenSSH
-sudo ufw enable
+sudo systemctl mask sleep.target suspend.target hibernate.target hybrid-sleep.target
 ```
 
-> OVH también ofrece un firewall de red en el panel (*Network Firewall* de la IP del VPS).
-> Es opcional: con el túnel basta con permitir SSH.
+## 2. Instalar Docker y Docker Compose
 
-## 2. Instalar Node.js 22 LTS
+Desde el repositorio oficial de Docker (trae el plugin `docker compose`):
 
 ```bash
-curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
-sudo apt install -y nodejs
-node -v   # debe mostrar v22.x
+sudo install -m 0755 -d /etc/apt/keyrings
+sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+sudo chmod a+r /etc/apt/keyrings/docker.asc
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_CODENAME") stable" \
+  | sudo tee /etc/apt/sources.list.d/docker.list >/dev/null
+sudo apt update
+sudo apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+
+sudo docker run --rm hello-world      # prueba: debe mostrar "Hello from Docker!"
 ```
 
-## 3. Instalar Caddy
+Docker queda activado al inicio del sistema.
+
+## 3. Descargar la wiki y crear la carpeta de datos
 
 ```bash
-curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | sudo gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
-curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' | sudo tee /etc/apt/sources.list.d/caddy-stable.list
-sudo apt update && sudo apt install -y caddy
+sudo mkdir -p /srv/wiki
+# (repositorio privado: usa una "deploy key" de solo lectura o un token)
+sudo git clone -b main https://github.com/Qernqo/Qernqo_Wiki.git /srv/wiki/app
+
+# datos: deben pertenecer al usuario 1000, con el que corre el contenedor de la wiki
+sudo install -d -o 1000 -g 1000 /srv/wiki/data
 ```
 
-## 4. Descargar la wiki y crear carpetas
+> Crea la carpeta de datos **antes** del primer arranque. Si no existe, Docker la crea como
+> `root` y la wiki no podrá escribir en ella (se corrige con `sudo chown -R 1000:1000 /srv/wiki/data`).
 
-```bash
-# usuario de sistema sin login para el servicio
-sudo useradd --system --home /srv/wiki --shell /usr/sbin/nologin wiki
-
-sudo mkdir -p /srv/wiki /etc/wiki /var/backups/wiki-restic
-sudo git clone -b main https://github.com/qernqo/qernqo_wiki.git /srv/wiki/app
-#  (repositorio privado: usa una "deploy key" de solo lectura o un token)
-
-sudo mkdir -p /srv/wiki/data
-sudo chown -R wiki:wiki /srv/wiki/data /var/backups/wiki-restic
-sudo chmod 700 /var/backups/wiki-restic
-sudo chmod 755 /srv/wiki /srv/wiki/data
-sudo chmod +x /srv/wiki/app/deploy/respaldo.sh
-
-sudo cp /srv/wiki/app/deploy/wiki.env.ejemplo /etc/wiki/wiki.env
-```
-
-## 5. Crear las claves de los usuarios
-
-La wiki tiene dos usuarios fijos:
-
-| Usuario      | Permisos                                          |
-|--------------|---------------------------------------------------|
-| `admin_user` | Acceso total (incluye eliminar y papelera)        |
-| `up_user`    | Crear y modificar procedimientos y categorías (no elimina)|
-
-```bash
-sudo -u wiki env WIKI_DATA_DIR=/srv/wiki/data node /srv/wiki/app/server/cli.js clave admin_user
-sudo -u wiki env WIKI_DATA_DIR=/srv/wiki/data node /srv/wiki/app/server/cli.js clave up_user
-```
-
-La clave se pide dos veces y debe tener al menos 10 caracteres. Para cambiarla, repite el
-comando: las sesiones abiertas de ese usuario se cierran automáticamente.
-
-## 6. Servicio systemd del backend
-
-```bash
-sudo cp /srv/wiki/app/deploy/wiki.service /etc/systemd/system/
-sudo systemctl daemon-reload
-sudo systemctl enable --now wiki
-sudo systemctl status wiki --no-pager
-curl -s http://127.0.0.1:3000/api/sesion     # → {"usuario":null}
-```
-
-## 7. Configurar Caddy (un archivo y un puerto por sitio)
-
-La configuración vive en `deploy/caddy/`:
-
-```
-Caddyfile                                → /etc/caddy/Caddyfile   (base común de todos los sitios)
-sitios/wiki.caddy                        → /etc/caddy/sitios/wiki.caddy   (puerto 8080)
-sitios/plantilla-estatico.caddy.ejemplo  → plantilla para sitios estáticos nuevos
-```
-
-`deploy/Caddyfile` es un acceso directo a `deploy/caddy/Caddyfile` (lo usa la guía de Fichas).
-La configuración de Fichas **no** está aquí: viene en su propio repositorio (sección 12).
-
-```bash
-# si el servidor ya tenía un Caddyfile, guárdalo antes de reemplazarlo
-sudo cp /etc/caddy/Caddyfile /etc/caddy/Caddyfile.antes 2>/dev/null || true
-
-sudo mkdir -p /etc/caddy/sitios
-sudo cp /srv/wiki/app/deploy/caddy/Caddyfile /etc/caddy/Caddyfile
-sudo cp /srv/wiki/app/deploy/caddy/sitios/wiki.caddy /etc/caddy/sitios/
-sudo caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
-sudo systemctl reload caddy
-curl -sI http://127.0.0.1:8080/ | head -1    # → HTTP/1.1 200 OK
-```
-
-Qué hace la base común (`Caddyfile`):
-- Sin certificados propios (`auto_https off`): el HTTPS lo pone Cloudflare.
-- Escucha solo en `127.0.0.1` (`default_bind`): nadie llega a Caddy sin pasar por el túnel.
-- Carga cada sitio desde `/etc/caddy/sitios/*.caddy`; cada uno escucha en su propio puerto.
-- Ofrece ajustes comunes (compresión, cabeceras de seguridad, bloqueo de archivos ocultos
-  como `.git` o `.env`) que la wiki y los sitios creados con la plantilla usan.
-- El puerto 80 queda sin sitio y responde "Sitio no configurado" (404): si ves ese mensaje en
-  el navegador, el hostname del túnel apunta al puerto equivocado.
-
-> Si quieres entrar también directamente desde la red interna, agrega la IP privada del
-> servidor en `default_bind` (p. ej. `default_bind 127.0.0.1 10.0.0.5`) y permite el puerto de
-> cada sitio solo desde esa red, p. ej. `sudo ufw allow from 10.0.0.0/8 to any port 8080 proto tcp`
-> (ajusta el rango).
-
-## 8. Túnel de Cloudflare + Cloudflare Access
-
-### 8.1 Instalar cloudflared
-
-```bash
-sudo mkdir -p --mode=0755 /usr/share/keyrings
-curl -fsSL https://pkg.cloudflare.com/cloudflare-main.gpg | sudo tee /usr/share/keyrings/cloudflare-main.gpg >/dev/null
-echo 'deb [signed-by=/usr/share/keyrings/cloudflare-main.gpg] https://pkg.cloudflare.com/cloudflared any main' | sudo tee /etc/apt/sources.list.d/cloudflared.list
-sudo apt update && sudo apt install -y cloudflared
-```
-
-### 8.2 Crear el túnel (desde el panel, lo más simple)
+## 4. Crear el túnel de Cloudflare
 
 1. En **Cloudflare Zero Trust** → **Networks → Tunnels** → **Create a tunnel** → tipo *Cloudflared*.
-2. Nombre: `wiki-soporte-ti` (un solo túnel sirve para todos los subdominios; la guía de Fichas
-   usa este mismo nombre). Elige *Debian / 64-bit* y copia el comando que aparece:
-   ```bash
-   sudo cloudflared service install <TOKEN_QUE_ENTREGA_CLOUDFLARE>
-   ```
-   Ejecútalo en el servidor. El túnel queda como servicio y arranca solo.
+2. Nombre: `wiki-soporte-ti`. En la pantalla de instalación elige **Docker** y copia **solo el
+   token**: el texto largo que aparece después de `--token` en el comando que muestra Cloudflare.
+   No ejecutes ese comando: el contenedor `cloudflared` ya viene en esta instalación.
 3. En **Public Hostname** agrega:
    - Subdominio: `wiki` · Dominio: `aysen.app`
-   - Service: **HTTP** → `localhost:8080`
+   - Service: **HTTP** → `caddy:8080`
 
-   Cada subdominio es otro *Public Hostname* en el mismo túnel, apuntando a **su** puerto:
-   `fichas.aysen.app` → `localhost:8081`, el siguiente sitio → `localhost:8082`, etc.
+   `caddy` es el nombre del contenedor dentro de la red de Docker; no uses `localhost`.
 
-### 8.3 Proteger con Cloudflare Access (login por correo)
+Guarda el token en el archivo de variables:
+
+```bash
+cd /srv/wiki/app
+sudo cp .env.ejemplo .env
+sudo chmod 600 .env
+sudo nano .env          # pega el token en TUNNEL_TOKEN= ; WIKI_DATOS=/srv/wiki/data
+```
+
+## 5. Construir la wiki y crear las claves de los usuarios
+
+```bash
+cd /srv/wiki/app
+sudo docker compose build
+
+sudo docker compose run --rm wiki node server/cli.js clave admin_user
+sudo docker compose run --rm wiki node server/cli.js clave up_user
+sudo docker compose run --rm wiki node server/cli.js usuarios      # ambos "con clave"
+```
+
+Cada clave debe tener al menos 10 caracteres. Para cambiar una clave más adelante se usa el
+mismo comando; las sesiones abiertas de ese usuario se cierran.
+
+## 6. Levantar la wiki
+
+```bash
+cd /srv/wiki/app
+sudo docker compose up -d
+sudo docker compose ps          # wiki "healthy"; caddy y cloudflared "Up"
+```
+
+Comprobaciones:
+
+```bash
+# Caddy responde dentro del servidor (debe mostrar "HTTP/1.1 200 OK")
+sudo docker compose exec caddy wget -S -q -O /dev/null http://localhost:8080/ 2>&1 | head -1
+# el túnel quedó conectado (debe mostrar "Registered tunnel connection")
+sudo docker compose logs cloudflared | grep -i registered
+```
+
+En el panel de Cloudflare el túnel debe aparecer como **HEALTHY**.
+
+## 7. Proteger con Cloudflare Access (login por correo)
 
 1. **Zero Trust → Access → Applications → Add an application → Self-hosted**.
-2. Dominio: `wiki.aysen.app` (repite la aplicación para cada subdominio, p. ej. `fichas.aysen.app`).
+2. Dominio: `wiki.aysen.app`.
 3. Política **Allow** → *Include* → **Emails ending in** `@saesa.cl`
    (o *Emails* con la lista exacta de correos autorizados).
 4. Método de login: **One-time PIN** (código enviado al correo).
 5. En el panel del dominio: **SSL/TLS → Edge Certificates → Always Use HTTPS = activado**.
-   La wiki marca su cookie de sesión como solo-HTTPS (`WIKI_COOKIE_SECURE=1`).
+   La wiki marca su cookie de sesión como solo-HTTPS.
 6. En el panel del dominio: **Speed → Optimization → Content Optimization → Rocket Loader =
-   desactivado** (para todo `aysen.app`; Fichas también lo exige). Rocket Loader inyecta un
-   script de Cloudflare que la política de seguridad de la wiki (CSP) bloquea, y la página
-   dejaría de funcionar. Por lo mismo, no actives otras funciones que inyectan scripts en las
-   páginas (p. ej. *Email Address Obfuscation* o el *beacon* automático de Web Analytics).
+   desactivado**. Rocket Loader inyecta un script de Cloudflare que la política de seguridad de
+   la wiki (CSP) bloquea, y la página dejaría de funcionar. Por lo mismo, no actives otras
+   funciones que inyectan scripts en las páginas (p. ej. *Email Address Obfuscation* o el
+   *beacon* automático de Web Analytics).
 
 > Los nombres de los menús de Cloudflare pueden variar levemente, pero los pasos son los mismos.
 
@@ -205,17 +163,46 @@ Con esto, cualquiera que entre a `https://wiki.aysen.app` primero se valida con 
 (Cloudflare) y luego ve la biblioteca. Para crear o editar procedimientos usa el botón **Ingresar**
 (arriba a la derecha) con `up_user` o `admin_user`.
 
-## 9. Respaldo diario (incremental con restic)
+## 8. Respaldo diario en disco USB (incremental con restic)
 
-El respaldo usa **restic**: cifrado, y cada día guarda solo lo nuevo o modificado. Conserva
-7 respaldos diarios, 4 semanales y 6 mensuales, y el repositorio ocupa aproximadamente lo
-mismo que los datos (no se multiplica por cada copia).
+El respaldo corre **en el servidor** (fuera de Docker) y usa **restic**: cifrado, y cada día
+guarda solo lo nuevo o modificado. Conserva 7 respaldos diarios, 4 semanales y 6 mensuales,
+y el repositorio ocupa aproximadamente lo mismo que los datos. Los domingos verifica la
+integridad del repositorio.
 
-### 9.1 Crear la clave del respaldo
+### 8.1 Preparar el disco USB (una sola vez)
+
+Identifica el disco (compara la salida con el USB conectado y desconectado):
 
 ```bash
+lsblk -o NAME,SIZE,FSTYPE,LABEL,MODEL
+```
+
+Si el disco es nuevo o se puede borrar, dale formato ext4 (⚠ **borra todo su contenido**;
+reemplaza `sdX1` por la partición correcta):
+
+```bash
+sudo mkfs.ext4 -L respaldo-wiki /dev/sdX1
+```
+
+Móntalo siempre en la misma ruta, identificándolo por su UUID:
+
+```bash
+sudo blkid /dev/sdX1                       # copia el UUID="…"
+sudo mkdir -p /mnt/respaldo-usb
+echo 'UUID=<UUID-DEL-DISCO> /mnt/respaldo-usb ext4 defaults,nofail,x-systemd.device-timeout=10s 0 2' | sudo tee -a /etc/fstab
+sudo systemctl daemon-reload
+sudo mount -a && findmnt /mnt/respaldo-usb  # debe mostrar el disco
+```
+
+`nofail` permite que el servidor arranque aunque el USB no esté conectado.
+
+### 8.2 Instalar restic y crear la clave del respaldo
+
+```bash
+sudo apt install -y restic
+sudo install -d -m 700 /etc/wiki
 openssl rand -base64 32 | sudo tee /etc/wiki/restic.pass >/dev/null
-sudo chown wiki:wiki /etc/wiki/restic.pass
 sudo chmod 600 /etc/wiki/restic.pass
 sudo cat /etc/wiki/restic.pass      # ⚠ guárdala en tu gestor de contraseñas
 ```
@@ -223,62 +210,75 @@ sudo cat /etc/wiki/restic.pass      # ⚠ guárdala en tu gestor de contraseñas
 > **Importante:** sin esta clave los respaldos **no se pueden recuperar**. Guárdala fuera
 > del servidor.
 
-### 9.2 Activar el respaldo automático (todos los días a las 02:30)
+### 8.3 Activar el respaldo automático (todos los días a las 02:30)
 
 ```bash
 sudo cp /srv/wiki/app/deploy/wiki-respaldo.service /srv/wiki/app/deploy/wiki-respaldo.timer /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable --now wiki-respaldo.timer
-sudo systemctl start wiki-respaldo.service      # primera copia (crea el repositorio)
+sudo systemctl start wiki-respaldo.service      # primera copia (crea el repositorio en el USB)
 journalctl -u wiki-respaldo -n 20 --no-pager    # resultado
 ```
 
 Ver las copias disponibles:
 
 ```bash
-sudo restic -r /var/backups/wiki-restic --password-file /etc/wiki/restic.pass snapshots
+sudo restic -r /mnt/respaldo-usb/wiki-restic --password-file /etc/wiki/restic.pass snapshots
 ```
 
-### 9.3 Restaurar
-
-```bash
-sudo systemctl stop wiki
-# 1) extraer la copia más reciente (o un ID de la lista de snapshots) a una carpeta temporal
-sudo restic -r /var/backups/wiki-restic --password-file /etc/wiki/restic.pass \
-     restore latest --target /tmp/wiki-restaurar
-# 2) reemplazar los datos actuales (-H conserva los enlaces entre versiones)
-sudo rsync -aH --delete /tmp/wiki-restaurar/srv/wiki/data/ /srv/wiki/data/
-sudo rm -r /tmp/wiki-restaurar
-sudo systemctl start wiki
-```
-
-### 9.4 Protección fuera del servidor (obligatorio)
-
-Este respaldo vive **en el mismo disco**: protege ante borrados o errores, pero **no** ante la
-pérdida del servidor. Mientras no uses otro destino, **activa en el panel de OVH la opción de
-respaldo automático del VPS** (*Automated Backup*) o programa **snapshots** periódicos: copian el
-disco completo fuera de la máquina. No omitas este paso.
-
-Revisa de vez en cuando que el respaldo diario terminó bien (no envía avisos):
+**Si el USB no está montado**, el respaldo de ese día se detiene con error
+(`el disco de respaldo no está montado`) y **no escribe nada en el disco interno**. El respaldo
+no envía avisos: revísalo de vez en cuando.
 
 ```bash
 systemctl status wiki-respaldo --no-pager     # "status=0/SUCCESS" = correcto
 journalctl -u wiki-respaldo -n 20 --no-pager  # "ADVERTENCIA" = copia creada con algún archivo omitido
 ```
 
-Cuando quieras respaldar fuera (OVHcloud Object Storage u otro S3), solo cambia en
-`/etc/systemd/system/wiki-respaldo.service` la línea `RESTIC_REPOSITORY=` por el destino
-(p. ej. `s3:https://s3.<región>.io.cloud.ovh.net/mi-bucket/wiki`) y agrega las credenciales
-`AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY`.
-
-## 10. Actualizar la wiki
+### 8.4 Restaurar
 
 ```bash
-cd /srv/wiki/app && sudo git pull origin main
-sudo systemctl restart wiki
+cd /srv/wiki/app
+sudo docker compose stop wiki caddy
+# 1) extraer la copia más reciente (o un ID de la lista de snapshots) a una carpeta temporal
+sudo restic -r /mnt/respaldo-usb/wiki-restic --password-file /etc/wiki/restic.pass \
+     restore latest --target /tmp/wiki-restaurar
+# 2) reemplazar los datos actuales (-H conserva los enlaces entre versiones)
+sudo rsync -aH --delete /tmp/wiki-restaurar/srv/wiki/data/ /srv/wiki/data/
+sudo chown -R 1000:1000 /srv/wiki/data
+sudo rm -r /tmp/wiki-restaurar
+sudo docker compose start wiki caddy
 ```
 
-## 11. Mover la biblioteca a otro servicio
+> El USB protege ante borrados, errores y fallas del disco del servidor, pero **no** ante un
+> robo, incendio o daño eléctrico que afecte a ambos. Cuando sea posible, guarda una segunda
+> copia fuera del lugar (otro USB rotado periódicamente o un almacenamiento en la nube:
+> restic admite S3, Backblaze B2, etc. cambiando `RESTIC_REPOSITORY`).
+
+## 9. Actualizar
+
+Nueva versión de la wiki:
+
+```bash
+cd /srv/wiki/app
+sudo git pull origin main
+sudo docker compose up -d --build
+```
+
+Usa siempre `--build`: el código de la API vive dentro de la imagen y la interfaz se lee desde
+el repositorio; así ambas quedan en la misma versión.
+
+Una vez al mes, actualiza también Caddy, cloudflared y la imagen base de Node:
+
+```bash
+cd /srv/wiki/app
+sudo docker compose pull
+sudo docker compose build --pull
+sudo docker compose up -d
+sudo docker image prune -f          # borra imágenes antiguas
+```
+
+## 10. Mover la biblioteca a otro servicio
 
 Toda la información vive en carpetas legibles:
 
@@ -293,59 +293,34 @@ Basta con copiar `biblioteca/` al nuevo destino con `rsync -aH` (o `tar`). La op
 conserva los enlaces: las imágenes que no cambian entre versiones son el mismo archivo en
 disco y sin `-H` se copiarían duplicadas (funciona igual, pero ocupa más). Si agregas o
 mueves carpetas a mano, entra como `admin_user` → **Papelera → Reconstruir índice**
-(o reinicia el servicio).
+(o reinicia con `sudo docker compose restart wiki`).
 
-## 12. Otros sitios en el mismo servidor
-
-Cada sitio tiene su archivo en `/etc/caddy/sitios/` y su propio puerto:
-
-| Sitio              | Puerto | Configuración                                  | Guía                              |
-|--------------------|--------|------------------------------------------------|-----------------------------------|
-| `wiki.aysen.app`   | 8080   | `deploy/caddy/sitios/wiki.caddy` (este repo)   | este documento                    |
-| `fichas.aysen.app` | 8081   | `deploy/fichas.caddy` (repo `qernqo_fichas`)   | `INSTALACION.md` de `qernqo_fichas` |
-| (siguiente sitio)  | 8082   | plantilla `deploy/caddy/sitios/plantilla-estatico.caddy.ejemplo` | abajo |
-
-### 12.1 Fichas
-
-Se instala con **su propia guía** (`INSTALACION.md` del repositorio `qernqo_fichas`), que parte
-de la wiki ya instalada: usa este Caddy y este mismo túnel. Su configuración de Caddy la trae
-su repositorio (puerto 8081, cabecera que habilita la cámara del lector de códigos) y la
-actualiza su propio `deploy/actualizar.sh`: no la copies desde este repositorio.
-
-### 12.2 Un sitio de HTML estático nuevo
-
-```bash
-# 1) archivos del sitio
-sudo mkdir -p /srv/NOMBRE/public
-sudo cp -r /ruta/del/html/* /srv/NOMBRE/public/      # index.html y demás archivos
-sudo chmod -R a+rX /srv/NOMBRE
-
-# 2) configuración de Caddy (reemplaza NOMBRE y PUERTO dentro del archivo; PUERTO = 8082, 8083…)
-sudo cp /srv/wiki/app/deploy/caddy/sitios/plantilla-estatico.caddy.ejemplo /etc/caddy/sitios/NOMBRE.caddy
-sudo nano /etc/caddy/sitios/NOMBRE.caddy
-sudo caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
-sudo systemctl reload caddy
-curl -sI http://127.0.0.1:PUERTO/ | head -1   # → HTTP/1.1 200 OK
-```
-
-3) En Cloudflare: agrega el *Public Hostname* `NOMBRE.aysen.app` → `http://localhost:PUERTO` en el
-   mismo túnel, y protégelo con Cloudflare Access (sección 8.3).
-
-La plantilla usa los ajustes comunes, que **bloquean cámara y micrófono**. Si el sitio los
-necesita, define sus propias cabeceras en vez de `import estatico` (como hace Fichas).
-
-Quitar un sitio: borrar su archivo de `/etc/caddy/sitios/`, `sudo systemctl reload caddy` y
-eliminar su *Public Hostname* en Cloudflare.
+Para llevar la wiki completa a otro servidor: instala según esta guía (pasos 1 a 3), copia
+`/srv/wiki/data` con `sudo rsync -aH` y el archivo `.env`, y levanta con el paso 6.
 
 ## Diagnóstico
 
-| Qué revisar          | Comando                                   |
-|----------------------|-------------------------------------------|
-| Logs del backend     | `journalctl -u wiki -f`                   |
-| Logs de Caddy        | `journalctl -u caddy -f`                  |
-| Sitios activos       | `ls /etc/caddy/sitios/`                   |
-| Wiki responde local  | `curl -sI http://127.0.0.1:8080/ \| head -1` |
-| Estado del túnel     | `systemctl status cloudflared`            |
-| Usuarios con clave   | `sudo -u wiki env WIKI_DATA_DIR=/srv/wiki/data node /srv/wiki/app/server/cli.js usuarios` |
-| Último respaldo      | `journalctl -u wiki-respaldo -n 20 --no-pager` |
-| Auditoría de cambios | `sudo tail -f /srv/wiki/data/config/auditoria.log` |
+Todos los comandos desde `/srv/wiki/app`:
+
+| Qué revisar                 | Comando                                              |
+|-----------------------------|------------------------------------------------------|
+| Estado de los contenedores  | `sudo docker compose ps`                             |
+| Logs de la wiki             | `sudo docker compose logs -f wiki`                   |
+| Logs de Caddy               | `sudo docker compose logs -f caddy`                  |
+| Estado del túnel            | `sudo docker compose logs --tail 20 cloudflared`     |
+| Wiki responde en el servidor | `sudo docker compose exec caddy wget -S -q -O /dev/null http://localhost:8080/ 2>&1 \| head -1` |
+| Usuarios con clave          | `sudo docker compose run --rm wiki node server/cli.js usuarios` |
+| Memoria y CPU               | `sudo docker stats --no-stream`                      |
+| Último respaldo             | `journalctl -u wiki-respaldo -n 20 --no-pager`       |
+| USB montado                 | `findmnt /mnt/respaldo-usb`                          |
+| Auditoría de cambios        | `sudo tail -f /srv/wiki/data/config/auditoria.log`   |
+
+Problemas comunes:
+
+| Síntoma | Causa probable |
+|---|---|
+| La wiki arranca y se reinicia con `EACCES` en los logs | La carpeta de datos no pertenece al usuario 1000: `sudo chown -R 1000:1000 /srv/wiki/data` |
+| Cloudflare muestra error 502 / 1033 | El hostname del túnel no apunta a `caddy:8080`, o el contenedor `cloudflared` está detenido |
+| `docker compose` pide `TUNNEL_TOKEN` | Falta el archivo `.env` o el token está vacío (paso 4) |
+| No se puede ingresar (el login no se mantiene) | Se está entrando por `http://`: activa *Always Use HTTPS* (paso 7.5) |
+| La página se ve en blanco | Rocket Loader u otra función que inyecta scripts está activa (paso 7.6) |

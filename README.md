@@ -27,8 +27,10 @@ public/            aplicación web (HTML/CSS/JS, sin compilación)
   assets/          logo Saesa y fuente Figtree (OFL)
 server/            API en Node.js sin dependencias externas
   cli.js           definir claves: node server/cli.js clave admin_user
-deploy/            caddy/ (base + un archivo por subdominio), servicios systemd, respaldo (restic)
-INSTALACION.md     guía paso a paso para Ubuntu en un VPS OVH (wiki + más subdominios)
+deploy/            Caddyfile de la wiki y respaldo diario a USB (restic + systemd)
+Dockerfile         imagen del backend (Node.js 22, sin dependencias npm)
+docker-compose.yml wiki + Caddy + túnel de Cloudflare (sin puertos abiertos)
+INSTALACION.md     guía paso a paso para un servidor local Ubuntu Server con Docker
 ```
 
 Datos (fuera del repositorio, por defecto `./data`):
@@ -40,7 +42,12 @@ data/papelera/     elementos eliminados (restaurables por el admin)
 data/config/       claves (hash scrypt), secreto de sesión y auditoria.log
 ```
 
-## Probar en local
+## Producción
+
+Contenedores Docker detrás de un túnel de Cloudflare con Cloudflare Access: ver
+[INSTALACION.md](INSTALACION.md).
+
+## Probar en local (sin Docker)
 
 ```bash
 node server/cli.js clave admin_user
