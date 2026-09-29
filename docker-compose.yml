@@ -1,0 +1,63 @@
+# Wiki Unidad Soporte TI - Saesa
+#
+#   Cloudflare (Access + túnel) ─► cloudflared ─► caddy:8080 ─┬─ /            → public/
+#                                                              ├─ /archivos/*  → datos/biblioteca
+#                                                              └─ /api/*       → wiki:3000
+#
+# No se publica ningún puerto en el servidor: solo el túnel llega a Caddy.
+# Variables en .env (copiar desde .env.ejemplo). Uso: docker compose up -d --build
+
+name: wiki
+
+services:
+  wiki:
+    build: .
+    image: wiki-soporte-ti
+    restart: unless-stopped
+    init: true
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 1g
+    pids_limit: 200
+    tmpfs: [/tmp]
+    volumes:
+      - ${WIKI_DATOS:-./data}:/datos
+    # Red sin salida a Internet: el backend no la necesita.
+    networks: [interna]
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    read_only: true
+    cap_drop: [ALL]
+    # el binario de la imagen oficial trae esta capacidad marcada y no arranca sin ella
+    cap_add: [NET_BIND_SERVICE]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 256m
+    tmpfs: [/data, /config]
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./public:/srv/public:ro
+      # carpeta de datos completa (solo lectura); Caddy publica únicamente biblioteca/
+      - ${WIKI_DATOS:-./data}:/srv/datos:ro
+    depends_on: [wiki]
+    networks: [interna, salida]
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${TUNNEL_TOKEN:?Falta TUNNEL_TOKEN en .env}
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 256m
+    depends_on: [caddy]
+    networks: [salida]
+
+networks:
+  interna:
+    internal: true
+  salida:

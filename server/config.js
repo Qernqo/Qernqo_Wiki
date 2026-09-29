@@ -1,6 +1,6 @@
 'use strict';
 // Configuración central. Todo se puede sobreescribir con variables de entorno
-// (ver deploy/wiki.env.ejemplo).
+// (en Docker las define el Dockerfile; ver también docker-compose.yml).
 const path = require('node:path');
 
 const raiz = path.join(__dirname, '..');

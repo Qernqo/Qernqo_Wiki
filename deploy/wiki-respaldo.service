@@ -1,13 +1,13 @@
 # /etc/systemd/system/wiki-respaldo.service
+# Respaldo de los datos de la wiki (carpeta del host montada en el contenedor) a un USB externo.
 [Unit]
-Description=Respaldo incremental de la Wiki Unidad Soporte TI (restic)
+Description=Respaldo incremental de la Wiki Unidad Soporte TI (restic → USB)
 
 [Service]
 Type=oneshot
-User=wiki
-Group=wiki
-EnvironmentFile=/etc/wiki/wiki.env
-Environment=RESTIC_REPOSITORY=/var/backups/wiki-restic
+Environment=WIKI_DATA_DIR=/srv/wiki/data
+Environment=RESPALDO_MONTAJE=/mnt/respaldo-usb
+Environment=RESTIC_REPOSITORY=/mnt/respaldo-usb/wiki-restic
 Environment=RESTIC_PASSWORD_FILE=/etc/wiki/restic.pass
 # caché de restic en /var/cache/wiki-restic (la crea systemd)
 CacheDirectory=wiki-restic
@@ -16,10 +16,10 @@ Nice=10
 IOSchedulingClass=idle
 ExecStart=/srv/wiki/app/deploy/respaldo.sh
 
-# endurecimiento: lee los datos, solo escribe en el repositorio de respaldo
+# endurecimiento: lee los datos, solo escribe en el disco de respaldo
 NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=true
 PrivateTmp=true
 PrivateDevices=true
-ReadWritePaths=/var/backups/wiki-restic
+ReadWritePaths=-/mnt/respaldo-usb

@@ -1,1 +1,65 @@
-caddy/Caddyfile
+# Caddy de la Wiki Unidad Soporte TI - Saesa (contenedor "caddy").
+# El túnel de Cloudflare publica wiki.aysen.app → http://caddy:8080
+{
+	# El HTTPS lo pone Cloudflare: Caddy atiende solo HTTP dentro de la red de Docker.
+	auto_https off
+	# Sin API de administración: para aplicar cambios se reinicia el contenedor.
+	admin off
+}
+
+:8080 {
+	encode zstd gzip
+	header {
+		X-Content-Type-Options nosniff
+		X-Frame-Options SAMEORIGIN
+		Referrer-Policy same-origin
+		Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=()"
+		# el navegador usará siempre HTTPS con este dominio (lo entrega Cloudflare)
+		Strict-Transport-Security "max-age=31536000"
+		# Política de contenido: solo recursos propios (la wiki no carga nada externo).
+		Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' data: blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'"
+		-Server
+	}
+
+	# Archivos ocultos (.git, temporales…) nunca se publican.
+	@oculto path_regexp oculto /\.
+	handle @oculto {
+		respond 404
+	}
+
+	# API (contenedor "wiki").
+	# Solo guardar procedimientos admite cuerpos grandes (PDF + imágenes).
+	@subida {
+		method POST
+		path /api/fichas /api/fichas/*/versiones
+	}
+	handle @subida {
+		request_body {
+			max_size 100MB
+		}
+		reverse_proxy wiki:3000
+	}
+	handle /api/* {
+		request_body {
+			max_size 64KB
+		}
+		reverse_proxy wiki:3000
+	}
+
+	# PDFs e imágenes de la biblioteca (solo lectura; los .json internos no se publican)
+	handle_path /archivos/* {
+		@interno path *.json
+		respond @interno 404
+		root * /srv/datos/biblioteca
+		header Cache-Control "no-cache"
+		file_server
+	}
+
+	# Aplicación web
+	handle {
+		root * /srv/public
+		try_files {path} /index.html
+		header Cache-Control "no-cache"
+		file_server
+	}
+}
