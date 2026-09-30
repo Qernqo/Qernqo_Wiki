@@ -437,6 +437,25 @@ button {
   font-size: 15px;
   color: var(--texto);
 }
+/* misma altura para todos los campos de una línea (texto, listas y fechas) */
+input.campo:not(.campo-chico):not([type='checkbox']):not([type='radio']):not([type='file']),
+select.campo {
+  height: 44px;
+}
+/* Safari de iPhone da a las fechas un ancho mínimo y un alto propios:
+   se igualan a los demás campos para que no se salgan del cuadro. */
+input[type='date'].campo {
+  min-width: 0;
+}
+@supports (-webkit-touch-callout: none) {
+  input[type='date'].campo {
+    -webkit-appearance: none;
+    appearance: none;
+  }
+  input[type='date'].campo::-webkit-date-and-time-value {
+    text-align: left;
+  }
+}
 .campo:focus {
   outline: none;
   border-color: var(--morado);
@@ -965,6 +984,13 @@ button.chip:hover {
 .paso-cabecera .paso-titulo {
   margin-right: auto;
 }
+.paso-negrita {
+  font-weight: 800;
+  font-size: 15px;
+  font-family: inherit;
+  color: var(--azul-texto);
+  margin-right: 6px;
+}
 .paso-asa {
   border: 0;
   background: none;
@@ -993,9 +1019,23 @@ button.chip:hover {
   color: var(--azul-texto);
 }
 .paso-texto {
-  resize: vertical;
   min-height: 80px;
   line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  cursor: text;
+}
+textarea.paso-texto {
+  resize: vertical;
+}
+.paso-texto strong,
+.paso-texto b {
+  font-weight: 700;
+}
+.paso-texto.vacio::before {
+  content: attr(data-placeholder);
+  color: var(--texto-suave);
+  pointer-events: none;
 }
 .paso-imagenes {
   display: grid;
@@ -1235,6 +1275,14 @@ button.chip:hover {
   .filtros-fila {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+  /* en dos columnas: Autor | Ordenar por, y debajo el rango Desde | Hasta */
+  .filtro-orden {
+    order: 1;
+  }
+  .filtro-desde,
+  .filtro-hasta {
+    order: 2;
+  }
   .arbol-acciones {
     display: flex;
   }
@@ -1271,7 +1319,7 @@ button.chip:hover {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
   .filtros-fila {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
   .filtros-tags {
     flex-direction: column;

@@ -3,6 +3,7 @@
 import { h, icono, api, fechaLarga, fechaCorta, fechaHora, poner, urlImagen } from './util.js';
 import { puedeEditar, textoRuta } from './estado.js';
 import { qrSvg } from './qr.js';
+import { tramos } from './negrita.js';
 
 function ampliar(src, alt) {
   const cerrar = () => {
@@ -37,7 +38,7 @@ export async function vistaProcedimiento(cont, id, version) {
         'div',
         { class: 'proc-paso-cuerpo' },
         h('h3', {}, `Paso ${i + 1}`),
-        p.texto ? h('p', { class: 'proc-texto' }, p.texto) : null,
+        p.texto ? h('p', { class: 'proc-texto' }, tramos(p.texto).map((t) => (t.b ? h('strong', {}, t.t) : t.t))) : null,
         p.imagenes.map((ruta, k) => {
           const src = urlImagen(detalle.base, ruta);
           const alt = `Paso ${i + 1}, imagen ${k + 1}`;

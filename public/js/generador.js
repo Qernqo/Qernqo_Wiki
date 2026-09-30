@@ -18,6 +18,7 @@ import {
 import { estado, categoriasPlanas, cargarBiblioteca, textoRuta } from './estado.js';
 import { crearPdf, caracteresNoImprimibles } from './pdf.js';
 import { qrSvg } from './qr.js';
+import { crearEditorPaso, negritaEnSeleccion } from './editor-paso.js';
 
 const MAX_IMAGENES = 4;
 const MAX_TAGS = 5;
@@ -94,7 +95,7 @@ function renumerar() {
   cont.querySelectorAll('.paso').forEach((el, i) => {
     el.querySelector('.paso-num').textContent = i + 1;
     el.querySelector('.paso-titulo').textContent = `Paso ${i + 1}`;
-    el.querySelector('textarea').setAttribute('aria-label', `Texto del paso ${i + 1}`);
+    el.querySelector('.paso-texto').setAttribute('aria-label', `Texto del paso ${i + 1}`);
   });
   cont.querySelector('#total-pasos').textContent = `${f.pasos.length} paso${f.pasos.length === 1 ? '' : 's'}`;
 }
@@ -157,24 +158,16 @@ function pintarImagenes(paso) {
 }
 
 function tarjetaPaso(paso) {
-  const texto = h('textarea', {
-    class: 'campo paso-texto',
-    rows: 3,
-    maxlength: 8000,
+  const texto = crearEditorPaso({
+    valor: paso.texto,
+    max: 8000,
     placeholder: 'Describe este paso. Puedes pegar capturas de pantalla con Ctrl+V.',
-    oninput: (e) => {
-      paso.texto = e.target.value;
-      ajustarAlto(e.target);
+    alCambiar: (valor) => {
+      paso.texto = valor;
+      marcarCambios();
     },
-    onpaste: (e) => {
-      const archivos = [...(e.clipboardData?.files || [])];
-      if (archivos.some((a) => a.type.startsWith('image/'))) {
-        e.preventDefault();
-        agregarImagenes(paso, archivos);
-      }
-    },
+    alPegarImagenes: (archivos) => agregarImagenes(paso, archivos),
   });
-  texto.value = paso.texto;
   const el = h(
     'div',
     {
@@ -200,6 +193,19 @@ function tarjetaPaso(paso) {
       h('button', { type: 'button', class: 'paso-asa', title: 'Arrastra para reordenar', 'aria-label': 'Arrastrar paso' }, icono('arrastrar')),
       h('span', { class: 'paso-num' }),
       h('strong', { class: 'paso-titulo' }),
+      h(
+        'button',
+        {
+          type: 'button',
+          class: 'btn-icono btn-mini paso-negrita',
+          title: 'Negrita (Ctrl+B): selecciona texto del paso y pulsa para aplicarla o quitarla',
+          'aria-label': 'Negrita',
+          // conserva el foco y la selección del texto
+          onmousedown: (e) => e.preventDefault(),
+          onclick: () => negritaEnSeleccion(texto),
+        },
+        'B',
+      ),
       h('button', { type: 'button', class: 'btn-icono btn-mini paso-mover', title: 'Subir paso', 'aria-label': 'Subir paso', onclick: (e) => moverPaso(paso, -1, e.currentTarget) }, icono('chevron', 'icono-arriba')),
       h('button', { type: 'button', class: 'btn-icono btn-mini paso-mover', title: 'Bajar paso', 'aria-label': 'Bajar paso', onclick: (e) => moverPaso(paso, 1, e.currentTarget) }, icono('chevron', 'icono-abajo')),
       h(
@@ -224,9 +230,8 @@ function tarjetaPaso(paso) {
     ),
     texto,
     h('div', { class: 'paso-imagenes' }),
-    h('p', { class: 'paso-ayuda' }, `Hasta ${MAX_IMAGENES} imágenes por paso. Arrástralas aquí, pégalas o usa "Agregar imagen". Puedes reordenarlas arrastrando.`),
+    h('p', { class: 'paso-ayuda' }, `Hasta ${MAX_IMAGENES} imágenes por paso. Arrástralas aquí, pégalas o usa "Agregar imagen". Puedes reordenarlas arrastrando. Para destacar texto en negrita, selecciónalo y pulsa B (Ctrl+B); lo pegado entra como texto simple.`),
   );
-  requestAnimationFrame(() => ajustarAlto(texto));
   return el;
 }
 
@@ -259,7 +264,7 @@ function agregarPaso(enfocar = false) {
   pintarImagenes(paso);
   renumerar();
   if (enfocar) {
-    el.querySelector('textarea').focus();
+    el.querySelector('.paso-texto').focus();
     el.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }
 }

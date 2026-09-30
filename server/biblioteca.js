@@ -226,7 +226,8 @@ function cargarResumen(dir, segmentos) {
       tags: d.tags || [],
       categoria: segmentos.slice(0, -1),
       descripcion: d.descripcion || '',
-      texto: (d.pasos || []).map((p) => p.texto || '').join('\n'),
+      // sin las marcas de negrita (**texto**) para buscar y mostrar extractos
+      texto: (d.pasos || []).map((p) => (p.texto || '').replace(/\*\*(?=[^\s*])([^\n]*?[^\s*])\*\*/g, '$1')).join('\n'),
       pasos: (d.pasos || []).length,
       pdf: urlArchivo([...segmentos, `v${f.versionActual}`, d.pdf]),
       versiones: f.versiones.length,
