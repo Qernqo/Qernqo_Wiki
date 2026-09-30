@@ -1,0 +1,86 @@
+/* Base: variables de uso general, tipografía, utilidades e íconos. */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+html {
+  -webkit-text-size-adjust: 100%;
+}
+body {
+  margin: 0;
+  font-family: var(--fuente);
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--texto);
+  background: var(--fondo);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+main {
+  flex: 1;
+  outline: none;
+}
+h1,
+h2,
+h3 {
+  color: var(--azul-texto);
+  line-height: 1.2;
+  margin: 0;
+}
+a {
+  color: var(--morado);
+}
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+button {
+  cursor: pointer;
+}
+:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--morado) 45%, transparent);
+  outline-offset: 2px;
+}
+[hidden] {
+  display: none !important;
+}
+.wrap {
+  width: 100%;
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 0 16px;
+}
+.saltar {
+  position: absolute;
+  left: -999px;
+}
+.saltar:focus {
+  left: 16px;
+  top: 8px;
+  z-index: 100;
+  background: #fff;
+  padding: 8px 12px;
+  border-radius: 8px;
+}
+
+/* ---------- íconos ---------- */
+.icono {
+  display: inline-flex;
+  width: 18px;
+  height: 18px;
+  flex: none;
+}
+.icono svg {
+  width: 100%;
+  height: 100%;
+}
+.icono-chico {
+  width: 14px;
+  height: 14px;
+}

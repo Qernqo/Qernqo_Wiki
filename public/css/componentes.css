@@ -1,0 +1,377 @@
+/* Piezas comunes a todas las pantallas: tarjetas, botones, campos,
+   chips, tablas, ventanas modales y avisos. */
+
+/* ---------- tarjetas ---------- */
+.tarjeta {
+  background: var(--superficie);
+  border-radius: var(--radio);
+  box-shadow: var(--sombra);
+  padding: 20px;
+}
+.tarjeta-cabecera {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.tarjeta-cabecera h2,
+.tarjeta > h2 {
+  font-size: 17px;
+}
+.tarjeta > h2 {
+  margin-bottom: 12px;
+}
+
+/* ---------- botones ---------- */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-radius: 999px;
+  padding: 10px 20px;
+  font-weight: 700;
+  font-size: 14px;
+  border: 1.5px solid transparent;
+  text-decoration: none;
+  white-space: nowrap;
+  transition:
+    background 0.15s,
+    border-color 0.15s;
+}
+.btn:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+.btn-primario {
+  background: var(--morado);
+  color: #fff;
+}
+.btn-primario:hover {
+  background: var(--morado-oscuro);
+}
+.btn-secundario {
+  background: #fff;
+  color: var(--morado);
+  border-color: var(--borde);
+}
+.btn-secundario:hover {
+  border-color: var(--morado);
+}
+.btn-peligro {
+  background: var(--peligro);
+  color: #fff;
+}
+.btn-peligro-suave {
+  background: var(--peligro-suave);
+  color: var(--peligro);
+}
+.btn-peligro-suave:hover {
+  border-color: var(--peligro);
+}
+.btn-texto {
+  background: none;
+  color: var(--texto-suave);
+}
+.btn-chico {
+  padding: 6px 12px;
+  font-size: 13px;
+}
+.btn-chico .icono {
+  width: 16px;
+  height: 16px;
+}
+.btn-bloque {
+  width: 100%;
+}
+.btn-icono {
+  display: inline-grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 0;
+  background: transparent;
+  color: var(--texto-suave);
+}
+.btn-icono:hover {
+  background: var(--superficie-2);
+  color: var(--morado);
+}
+.btn-icono.peligro:hover {
+  color: var(--peligro);
+  background: var(--peligro-suave);
+}
+.btn-mini {
+  width: 26px;
+  height: 26px;
+}
+.btn-mini .icono {
+  width: 15px;
+  height: 15px;
+}
+.enlace {
+  border: 0;
+  background: none;
+  color: var(--morado);
+  font-weight: 700;
+  font-size: 13px;
+  padding: 4px 6px;
+}
+
+/* ---------- formularios ---------- */
+.etiqueta {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--azul-texto);
+}
+.campo {
+  width: 100%;
+  border: 1.5px solid var(--borde);
+  border-radius: var(--radio-chico);
+  padding: 10px 12px;
+  background: #fff;
+  font-weight: 400;
+  font-size: 15px;
+  color: var(--texto);
+}
+/* misma altura para todos los campos de una línea (texto, listas y fechas) */
+input.campo:not(.campo-chico):not([type='checkbox']):not([type='radio']):not([type='file']),
+select.campo {
+  height: 44px;
+}
+/* Safari de iPhone da a las fechas un ancho mínimo y un alto propios:
+   se igualan a los demás campos para que no se salgan del cuadro. */
+input[type='date'].campo {
+  min-width: 0;
+}
+@supports (-webkit-touch-callout: none) {
+  input[type='date'].campo {
+    -webkit-appearance: none;
+    appearance: none;
+  }
+  input[type='date'].campo::-webkit-date-and-time-value {
+    text-align: left;
+  }
+}
+.campo:focus {
+  outline: none;
+  border-color: var(--morado);
+  box-shadow: 0 0 0 3px var(--morado-suave);
+}
+.campo:disabled {
+  background: var(--superficie-2);
+  color: var(--texto-suave);
+}
+.campo.invalido {
+  border-color: var(--peligro);
+  background: #fffafa;
+}
+.ayuda {
+  font-weight: 400;
+  color: var(--texto-suave);
+  font-size: 12px;
+}
+.error-form {
+  color: var(--peligro);
+  font-size: 14px;
+  margin: 0;
+}
+.texto-suave {
+  color: var(--texto-suave);
+}
+.fuerte {
+  font-weight: 700;
+  color: var(--azul-texto);
+}
+
+/* ---------- chips / tags ---------- */
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1.5px solid var(--borde);
+  background: #fff;
+  color: var(--azul-texto);
+  border-radius: 999px;
+  padding: 4px 12px;
+  font-size: 13px;
+  font-weight: 600;
+}
+button.chip:hover {
+  border-color: var(--morado);
+}
+.chip-activo {
+  background: var(--morado-suave);
+  border-color: transparent;
+  color: var(--morado);
+}
+.chip-num {
+  font-size: 11px;
+  color: var(--texto-suave);
+}
+.chip-chico {
+  padding: 2px 10px;
+  font-size: 12px;
+}
+.chip-quitar {
+  display: inline-grid;
+  place-items: center;
+  border: 0;
+  background: none;
+  color: inherit;
+  padding: 0;
+}
+.insignia {
+  display: inline-block;
+  background: var(--lima);
+  color: var(--azul);
+  font-size: 11px;
+  font-weight: 700;
+  border-radius: 999px;
+  padding: 1px 8px;
+  margin-left: 8px;
+  vertical-align: middle;
+}
+.insignia-suave {
+  background: var(--morado-suave);
+  color: var(--morado);
+  margin-left: 0;
+}
+
+/* ---------- tablas ---------- */
+.tabla-envoltura {
+  overflow-x: auto;
+}
+.tabla {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+.tabla th {
+  text-align: left;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--texto-suave);
+  padding: 8px 10px;
+  border-bottom: 1.5px solid var(--borde);
+}
+.tabla td {
+  padding: 10px;
+  border-bottom: 1px solid var(--borde);
+  vertical-align: middle;
+}
+/* La celda sigue siendo de tabla (display flex rompía su borde inferior). */
+.acciones-tabla {
+  text-align: right;
+  white-space: nowrap;
+}
+.acciones-tabla > * + * {
+  margin-left: 6px;
+}
+
+/* ---------- modal ---------- */
+.modal-fondo {
+  position: fixed;
+  inset: 0;
+  background: rgba(11, 37, 89, 0.45);
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  z-index: 50;
+  animation: aparecer 0.15s ease-out;
+}
+.modal {
+  background: #fff;
+  border-radius: var(--radio);
+  width: 100%;
+  max-width: 460px;
+  max-height: calc(100vh - 32px);
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
+}
+.modal-ancho {
+  max-width: 820px;
+}
+.modal-cabecera {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px 8px;
+}
+.modal-cabecera h2 {
+  font-size: 18px;
+}
+.modal-cuerpo {
+  padding: 8px 20px 16px;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.modal-cuerpo p {
+  margin: 0;
+}
+.modal-pie {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 14px 20px;
+  border-top: 1px solid var(--borde);
+}
+@keyframes aparecer {
+  from {
+    opacity: 0;
+  }
+}
+
+/* ---------- avisos ---------- */
+#avisos {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 60;
+  max-width: calc(100vw - 40px);
+}
+.aviso {
+  background: var(--azul);
+  color: #fff;
+  padding: 12px 18px;
+  border-radius: var(--radio-chico);
+  box-shadow: var(--sombra);
+  border-left: 5px solid var(--lima);
+  font-weight: 600;
+  transition:
+    opacity 0.4s,
+    transform 0.4s;
+}
+.aviso-error {
+  background: var(--peligro);
+  border-left-color: #fff;
+}
+.aviso.salir {
+  opacity: 0;
+  transform: translateY(8px);
+}
+
+.pie {
+  background: var(--azul);
+  color: rgba(255, 255, 255, 0.75);
+  font-size: 13px;
+  padding: 18px 0;
+}

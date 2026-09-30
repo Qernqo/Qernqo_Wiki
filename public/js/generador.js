@@ -678,7 +678,7 @@ export async function vistaGenerador(contenedor, id) {
             (() => {
               const area = h('textarea', {
                 id: 'g-descripcion',
-                class: 'campo paso-texto',
+                class: 'campo campo-descripcion',
                 rows: 3,
                 maxlength: 5000,
                 placeholder: 'Ej.: Este procedimiento describe cómo crear una VLAN en los switches Cisco de las sucursales. Requiere acceso de administrador.',

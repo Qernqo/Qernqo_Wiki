@@ -1,0 +1,311 @@
+/* Biblioteca: árbol de categorías, filtros, tags y resultados. */
+
+/* ---------- biblioteca ---------- */
+.biblio {
+  display: grid;
+  grid-template-columns: 290px 1fr;
+  gap: 20px;
+  margin-top: -40px;
+  position: relative;
+  padding-bottom: 40px;
+}
+/* Categorías alineada arriba con el cuadro de filtros (sin desplazarse al bajar). */
+.panel-arbol {
+  align-self: start;
+}
+.arbol-todas {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  border: 0;
+  background: none;
+  padding: 8px 10px;
+  border-radius: 8px;
+  font-weight: 700;
+  color: var(--azul-texto);
+  text-align: left;
+}
+.arbol,
+.arbol ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.arbol ul {
+  padding-left: 16px;
+  border-left: 1px dashed var(--borde);
+  margin-left: 13px;
+}
+.arbol-fila {
+  display: flex;
+  align-items: center;
+  border-radius: 8px;
+}
+.arbol-fila:hover,
+.arbol-todas:hover {
+  background: var(--superficie-2);
+}
+.arbol-fila.seleccionado,
+.arbol-todas.seleccionado {
+  background: var(--morado-suave);
+}
+.arbol-fila.seleccionado .arbol-nombre,
+.arbol-todas.seleccionado {
+  color: var(--morado);
+}
+.arbol-toggle {
+  border: 0;
+  background: none;
+  width: 26px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  color: var(--texto-suave);
+  flex: none;
+}
+.arbol-toggle .icono {
+  width: 14px;
+  height: 14px;
+  transition: transform 0.15s;
+}
+.arbol-toggle.abierto .icono {
+  transform: rotate(90deg);
+}
+.arbol-nombre {
+  flex: 1;
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  border: 0;
+  background: none;
+  text-align: left;
+  padding: 6px 4px;
+  font-weight: 600;
+  color: var(--azul-texto);
+  min-width: 0;
+}
+.arbol-nombre span:first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.contador {
+  font-size: 12px;
+  color: var(--texto-suave);
+  font-weight: 600;
+  margin-left: auto;
+}
+.arbol-acciones {
+  display: none;
+  flex: none;
+}
+.arbol-fila:hover .arbol-acciones,
+.arbol-fila:focus-within .arbol-acciones {
+  display: flex;
+}
+.filtros {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.filtros-fila {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+.filtros-tags {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.tags-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  align-self: flex-start;
+  border: 0;
+  background: none;
+  padding: 4px 2px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--azul-texto);
+}
+.tags-toggle:hover {
+  color: var(--morado);
+}
+.triangulo {
+  width: 0;
+  height: 0;
+  border-left: 7px solid currentColor;
+  border-top: 5px solid transparent;
+  border-bottom: 5px solid transparent;
+  transition: transform 0.15s;
+}
+.tags-toggle[aria-expanded='true'] .triangulo {
+  transform: rotate(90deg);
+}
+.tags-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.campo-chico {
+  padding: 7px 12px;
+  font-size: 14px;
+  max-width: 320px;
+}
+/* con cientos de tags la lista no empuja los resultados: tiene su propio scroll */
+.tags-lista {
+  max-height: 172px;
+  overflow-y: auto;
+  align-content: flex-start;
+  padding: 2px;
+}
+.resultados-cabecera {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin: 18px 0 10px;
+  color: var(--azul-texto);
+}
+.aviso-parcial {
+  background: #fff8db;
+  border-radius: var(--radio-chico);
+  padding: 8px 12px;
+  font-size: 13px;
+  margin: 0 0 10px;
+}
+.resultados {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.ficha {
+  display: grid;
+  grid-template-columns: 48px 1fr auto;
+  gap: 16px;
+  background: #fff;
+  border-radius: var(--radio);
+  box-shadow: var(--sombra);
+  padding: 18px 20px;
+  border: 1.5px solid transparent;
+  transition: border-color 0.15s;
+}
+.ficha:hover {
+  border-color: var(--morado-suave);
+}
+.ficha-icono {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  background: var(--morado-suave);
+  color: var(--morado);
+  display: grid;
+  place-items: center;
+}
+.ficha-icono .icono {
+  width: 24px;
+  height: 24px;
+}
+.ficha-cuerpo {
+  min-width: 0;
+}
+.ficha-ruta {
+  font-size: 12px;
+  color: var(--texto-suave);
+  font-weight: 600;
+}
+.ficha-titulo {
+  font-size: 17px;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 2px 0 4px;
+}
+.ficha-titulo a {
+  color: var(--azul-texto);
+  text-decoration: none;
+}
+.ficha-titulo a:hover {
+  color: var(--morado);
+  text-decoration: underline;
+}
+.version {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  border: 0;
+  background: var(--azul);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 2px 4px 2px 9px;
+  border-radius: 999px;
+}
+.version-mas {
+  background: var(--lima);
+  color: var(--azul);
+  border-radius: 999px;
+  padding: 0 7px;
+  margin-left: 4px;
+  line-height: 1.4;
+}
+.version:hover .version-mas {
+  background: #fff;
+}
+.ficha-extracto {
+  margin: 0 0 8px;
+  color: var(--texto-suave);
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+.ficha-extracto mark {
+  background: #f2f7c4;
+  color: inherit;
+  border-radius: 3px;
+  padding: 0 2px;
+}
+.ficha-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  font-size: 13px;
+  color: var(--texto-suave);
+}
+.ficha-meta span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.ficha-meta .icono {
+  width: 15px;
+  height: 15px;
+}
+.ficha-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+.ficha-acciones {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: stretch;
+}
+.vacio {
+  text-align: center;
+  color: var(--texto-suave);
+  padding: 40px 16px;
+}
+.vacio .btn {
+  margin-top: 8px;
+}
+.cargando {
+  padding: 60px 16px;
+  text-align: center;
+  color: var(--texto-suave);
+}

@@ -1,0 +1,8 @@
+/* Papelera. */
+
+/* tarjeta única que se superpone al hero (papelera) */
+.tarjeta-sobre-hero {
+  margin-top: -40px;
+  position: relative;
+  margin-bottom: 40px;
+}
