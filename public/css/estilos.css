@@ -1000,9 +1000,23 @@ button.chip:hover {
   color: var(--azul-texto);
 }
 .paso-texto {
-  resize: vertical;
   min-height: 80px;
   line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  cursor: text;
+}
+textarea.paso-texto {
+  resize: vertical;
+}
+.paso-texto strong,
+.paso-texto b {
+  font-weight: 700;
+}
+.paso-texto.vacio::before {
+  content: attr(data-placeholder);
+  color: var(--texto-suave);
+  pointer-events: none;
 }
 .paso-imagenes {
   display: grid;
