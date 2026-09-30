@@ -18,6 +18,7 @@ import {
 import { estado, categoriasPlanas, cargarBiblioteca, textoRuta } from './estado.js';
 import { crearPdf, caracteresNoImprimibles } from './pdf.js';
 import { qrSvg } from './qr.js';
+import { alternarNegrita } from './negrita.js';
 
 const MAX_IMAGENES = 4;
 const MAX_TAGS = 5;
@@ -166,6 +167,12 @@ function tarjetaPaso(paso) {
       paso.texto = e.target.value;
       ajustarAlto(e.target);
     },
+    onkeydown: (e) => {
+      if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === 'b') {
+        e.preventDefault();
+        negrita(e.target);
+      }
+    },
     onpaste: (e) => {
       const archivos = [...(e.clipboardData?.files || [])];
       if (archivos.some((a) => a.type.startsWith('image/'))) {
@@ -200,6 +207,19 @@ function tarjetaPaso(paso) {
       h('button', { type: 'button', class: 'paso-asa', title: 'Arrastra para reordenar', 'aria-label': 'Arrastrar paso' }, icono('arrastrar')),
       h('span', { class: 'paso-num' }),
       h('strong', { class: 'paso-titulo' }),
+      h(
+        'button',
+        {
+          type: 'button',
+          class: 'btn-icono btn-mini paso-negrita',
+          title: 'Negrita (Ctrl+B): selecciona texto del paso y pulsa para aplicarla o quitarla',
+          'aria-label': 'Negrita',
+          // conserva el foco y la selección del texto
+          onmousedown: (e) => e.preventDefault(),
+          onclick: () => negrita(texto),
+        },
+        'B',
+      ),
       h('button', { type: 'button', class: 'btn-icono btn-mini paso-mover', title: 'Subir paso', 'aria-label': 'Subir paso', onclick: (e) => moverPaso(paso, -1, e.currentTarget) }, icono('chevron', 'icono-arriba')),
       h('button', { type: 'button', class: 'btn-icono btn-mini paso-mover', title: 'Bajar paso', 'aria-label': 'Bajar paso', onclick: (e) => moverPaso(paso, 1, e.currentTarget) }, icono('chevron', 'icono-abajo')),
       h(
@@ -224,10 +244,30 @@ function tarjetaPaso(paso) {
     ),
     texto,
     h('div', { class: 'paso-imagenes' }),
-    h('p', { class: 'paso-ayuda' }, `Hasta ${MAX_IMAGENES} imágenes por paso. Arrástralas aquí, pégalas o usa "Agregar imagen". Puedes reordenarlas arrastrando.`),
+    h('p', { class: 'paso-ayuda' }, `Hasta ${MAX_IMAGENES} imágenes por paso. Arrástralas aquí, pégalas o usa "Agregar imagen". Puedes reordenarlas arrastrando. Para destacar texto en negrita, selecciónalo y pulsa B (Ctrl+B).`),
   );
   requestAnimationFrame(() => ajustarAlto(texto));
   return el;
+}
+
+// Aplica o quita la negrita (**texto**) en la selección del texto del paso.
+// Reemplaza solo el tramo que cambia, así Ctrl+Z la deshace.
+function negrita(textarea) {
+  const antes = textarea.value;
+  const r = alternarNegrita(antes, textarea.selectionStart, textarea.selectionEnd);
+  if (!r) return;
+  let ini = 0;
+  while (ini < antes.length && ini < r.texto.length && antes[ini] === r.texto[ini]) ini++;
+  let fin = 0;
+  while (fin < antes.length - ini && fin < r.texto.length - ini && antes.at(-1 - fin) === r.texto.at(-1 - fin)) fin++;
+  textarea.focus();
+  textarea.setSelectionRange(ini, antes.length - fin);
+  const nuevo = r.texto.slice(ini, r.texto.length - fin);
+  if (!document.execCommand('insertText', false, nuevo)) {
+    textarea.setRangeText(nuevo);
+    textarea.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+  textarea.setSelectionRange(r.ini, r.fin);
 }
 
 // Alternativa al arrastre (teclado / lector de pantalla).

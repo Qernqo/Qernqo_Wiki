@@ -3,6 +3,7 @@
 // se insertan como imágenes JPEG.
 /* global jspdf */
 import { qrPdf } from './qr.js';
+import { tramos } from './negrita.js';
 import { blobADataUrl, fechaCorta } from './util.js';
 import { RANGOS_GLIFOS } from './glifos.js';
 
@@ -249,9 +250,79 @@ export async function crearPdf(datosOriginales, categoriaOriginal) {
   const anchoTexto = ANCHO - 10;
   const lh = altoLinea(10.5, 1.45);
 
+  // Ancho de un texto con la fuente normal o negrita (al tamaño actual).
+  const medir = (t, b) => {
+    doc.setFont('Figtree', b ? 'bold' : 'normal');
+    return doc.getTextWidth(t);
+  };
+
+  // Divide el texto de un paso en líneas que caben en `ancho`, cada una como
+  // tramos [{ t, b }] (b = negrita), respetando los saltos de línea.
+  const lineasConNegrita = (texto, ancho) => {
+    const lineas = [];
+    let linea = [];
+    let usado = 0;
+    const agregar = (t, b) => {
+      const ultimo = linea.at(-1);
+      if (ultimo && ultimo.b === b) ultimo.t += t;
+      else linea.push({ t, b });
+      usado += medir(t, b);
+    };
+    const cerrar = () => {
+      const ultimo = linea.at(-1);
+      if (ultimo) ultimo.t = ultimo.t.replace(/\s+$/, '');
+      lineas.push(linea.filter((x) => x.t));
+      linea = [];
+      usado = 0;
+    };
+    const piezas = [];
+    for (const { t, b } of tramos(texto)) {
+      for (const p of t.split(/(\n|[^\S\n]+)/)) if (p) piezas.push({ t: p, b });
+    }
+    let inicioParrafo = true;
+    for (const { t, b } of piezas) {
+      if (t === '\n') {
+        cerrar();
+        inicioParrafo = true;
+        continue;
+      }
+      if (/^\s+$/.test(t)) {
+        // los espacios al inicio de una línea cortada se omiten
+        if (linea.length || inicioParrafo) agregar(t, b);
+        continue;
+      }
+      let palabra = t;
+      while (palabra) {
+        const w = medir(palabra, b);
+        if (usado + w <= ancho) {
+          agregar(palabra, b);
+          break;
+        }
+        if (usado > 0 && w <= ancho) {
+          cerrar();
+          continue;
+        }
+        // palabra más larga que la línea: se corta por caracteres
+        const chars = [...palabra];
+        let n = 1;
+        while (n < chars.length && usado + medir(chars.slice(0, n + 1).join(''), b) <= ancho) n++;
+        if (usado > 0 && usado + medir(chars.slice(0, n).join(''), b) > ancho) {
+          cerrar();
+          continue;
+        }
+        agregar(chars.slice(0, n).join(''), b);
+        palabra = chars.slice(n).join('');
+        if (palabra) cerrar();
+      }
+      inicioParrafo = false;
+    }
+    cerrar();
+    return lineas;
+  };
+
   datos.pasos.forEach((paso, i) => {
     fuente('normal', 10.5);
-    const lineas = paso.texto ? doc.splitTextToSize(paso.texto, anchoTexto) : [];
+    const lineas = paso.texto ? lineasConNegrita(paso.texto, anchoTexto) : [];
     asegurar(10 + Math.min(lineas.length, 3) * lh + (lineas.length ? 0 : 40));
 
     // número del paso
@@ -266,9 +337,15 @@ export async function crearPdf(datosOriginales, categoriaOriginal) {
     fuente('normal', 10.5);
     for (const linea of lineas) {
       if (y + lh > FONDO) nuevaPagina();
-      doc.text(linea, xTexto, y + 3.8);
+      let x = xTexto;
+      for (const { t, b } of linea) {
+        doc.setFont('Figtree', b ? 'bold' : 'normal');
+        doc.text(t, x, y + 3.8);
+        x += doc.getTextWidth(t);
+      }
       y += lh;
     }
+    doc.setFont('Figtree', 'normal');
     if (lineas.length) y += 2;
 
     // imágenes: 1 → ancho completo; 2 → dos columnas; 3-4 → grilla 2×2

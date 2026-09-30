@@ -965,6 +965,13 @@ button.chip:hover {
 .paso-cabecera .paso-titulo {
   margin-right: auto;
 }
+.paso-negrita {
+  font-weight: 800;
+  font-size: 15px;
+  font-family: inherit;
+  color: var(--azul-texto);
+  margin-right: 6px;
+}
 .paso-asa {
   border: 0;
   background: none;
