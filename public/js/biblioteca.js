@@ -544,15 +544,15 @@ function pintar() {
             { class: 'filtros-fila' },
             h(
               'label',
-              { class: 'etiqueta' },
+              { class: 'etiqueta filtro-autor' },
               'Autor',
               h('select', { id: 'f-autor', class: 'campo', onchange: cambio('autor') }, h('option', { value: '' }, 'Todos'), autores.map((a) => h('option', { value: a }, a))),
             ),
-            h('label', { class: 'etiqueta' }, 'Desde', h('input', { id: 'f-desde', type: 'date', class: 'campo', onchange: cambio('desde') })),
-            h('label', { class: 'etiqueta' }, 'Hasta', h('input', { id: 'f-hasta', type: 'date', class: 'campo', onchange: cambio('hasta') })),
+            h('label', { class: 'etiqueta filtro-desde' }, 'Desde', h('input', { id: 'f-desde', type: 'date', class: 'campo', onchange: cambio('desde') })),
+            h('label', { class: 'etiqueta filtro-hasta' }, 'Hasta', h('input', { id: 'f-hasta', type: 'date', class: 'campo', onchange: cambio('hasta') })),
             h(
               'label',
-              { class: 'etiqueta' },
+              { class: 'etiqueta filtro-orden' },
               'Ordenar por',
               h(
                 'select',

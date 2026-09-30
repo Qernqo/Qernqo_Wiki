@@ -437,6 +437,25 @@ button {
   font-size: 15px;
   color: var(--texto);
 }
+/* misma altura para todos los campos de una línea (texto, listas y fechas) */
+input.campo:not(.campo-chico):not([type='checkbox']):not([type='radio']):not([type='file']),
+select.campo {
+  height: 44px;
+}
+/* Safari de iPhone da a las fechas un ancho mínimo y un alto propios:
+   se igualan a los demás campos para que no se salgan del cuadro. */
+input[type='date'].campo {
+  min-width: 0;
+}
+@supports (-webkit-touch-callout: none) {
+  input[type='date'].campo {
+    -webkit-appearance: none;
+    appearance: none;
+  }
+  input[type='date'].campo::-webkit-date-and-time-value {
+    text-align: left;
+  }
+}
 .campo:focus {
   outline: none;
   border-color: var(--morado);
@@ -1256,6 +1275,14 @@ textarea.paso-texto {
   .filtros-fila {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+  /* en dos columnas: Autor | Ordenar por, y debajo el rango Desde | Hasta */
+  .filtro-orden {
+    order: 1;
+  }
+  .filtro-desde,
+  .filtro-hasta {
+    order: 2;
+  }
   .arbol-acciones {
     display: flex;
   }
@@ -1292,7 +1319,7 @@ textarea.paso-texto {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
   .filtros-fila {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
   .filtros-tags {
     flex-direction: column;
