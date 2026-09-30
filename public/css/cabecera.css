@@ -1,0 +1,217 @@
+/* Barra superior, cabecera con el menú y banda de título (hero). */
+
+/* ---------- barra superior y cabecera ---------- */
+.barra-superior {
+  background: var(--azul-barra);
+  color: #fff;
+  font-size: 13px;
+}
+.barra-superior-contenido {
+  display: flex;
+  justify-content: space-between;
+  align-items: stretch;
+  min-height: 28px;
+}
+.barra-superior nav {
+  display: flex;
+}
+.barra-superior nav a {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 12px;
+  color: #fff;
+  text-decoration: none;
+  opacity: 0.9;
+}
+.barra-superior nav a:first-child {
+  padding-left: 0;
+}
+.barra-superior nav a:hover {
+  opacity: 1;
+  text-decoration: underline;
+}
+.barra-superior .activo {
+  background: var(--azul);
+  font-weight: 700;
+  opacity: 1;
+  padding: 0 12px !important;
+}
+.cabecera {
+  background: var(--azul);
+  color: #fff;
+  position: sticky;
+  top: 0;
+  z-index: 20;
+}
+.cabecera-contenido {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+  min-height: 64px;
+}
+.marca {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: #fff;
+  text-decoration: none;
+}
+.marca img {
+  height: 30px;
+  width: auto;
+}
+.marca-texto {
+  font-size: 11px;
+  line-height: 1.15;
+  font-weight: 600;
+  border-left: 1px solid rgba(255, 255, 255, 0.35);
+  padding-left: 12px;
+  opacity: 0.9;
+}
+.nav {
+  display: flex;
+  gap: 4px;
+  flex: 1;
+}
+.nav a {
+  color: #fff;
+  text-decoration: none;
+  font-weight: 700;
+  padding: 8px 12px;
+  border-radius: 999px;
+  white-space: nowrap;
+  position: relative;
+}
+.nav a:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+.nav a.activo::after {
+  /* línea recta bajo el texto: no depende del redondeo de la píldora */
+  content: '';
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 3px;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--lima);
+}
+.zona-usuario {
+  margin-left: auto;
+}
+.usuario-envoltura {
+  position: relative;
+}
+.btn-usuario {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: #fff;
+  color: var(--morado);
+  border: 0;
+  border-radius: 999px;
+  padding: 9px 22px;
+  font-weight: 700;
+  font-size: 14px;
+  white-space: nowrap;
+}
+.btn-usuario:hover {
+  background: var(--morado-suave);
+}
+.menu-usuario {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  background: #fff;
+  color: var(--texto);
+  border-radius: var(--radio-chico);
+  box-shadow: var(--sombra);
+  min-width: 230px;
+  padding: 6px;
+  z-index: 30;
+}
+.menu-rol {
+  font-size: 12px;
+  color: var(--texto-suave);
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--borde);
+  margin-bottom: 4px;
+}
+.menu-item {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  width: 100%;
+  border: 0;
+  background: none;
+  padding: 8px 10px;
+  border-radius: 8px;
+  text-align: left;
+}
+.menu-item:hover {
+  background: var(--superficie-2);
+}
+
+/* ---------- hero ---------- */
+.hero {
+  position: relative;
+  overflow: hidden;
+  color: #fff;
+  background:
+    radial-gradient(circle at 92% 120%, rgba(79, 31, 255, 0.55) 0 180px, transparent 181px),
+    radial-gradient(circle at 92% 120%, rgba(79, 31, 255, 0.3) 0 260px, transparent 261px),
+    linear-gradient(120deg, #0b2559 0%, #1a2f78 55%, #2c1f9e 100%);
+  padding: 44px 0 72px;
+}
+.hero h1 {
+  color: #fff;
+  font-size: clamp(26px, 4vw, 36px);
+  font-weight: 700;
+}
+.hero h1::after {
+  content: '';
+  display: block;
+  width: 56px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--lima);
+  margin-top: 10px;
+}
+.hero p {
+  margin: 12px 0 0;
+  opacity: 0.9;
+  max-width: 720px;
+}
+.hero-chico {
+  padding: 32px 0 60px;
+}
+.hero-ayuda {
+  font-size: 13px;
+}
+.buscador {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #fff;
+  color: var(--texto-suave);
+  border-radius: 999px;
+  padding: 6px 8px 6px 20px;
+  margin-top: 22px;
+  max-width: 760px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.18);
+}
+.buscador .icono {
+  width: 22px;
+  height: 22px;
+  color: var(--morado);
+}
+.buscador-input {
+  flex: 1;
+  border: 0;
+  outline: none;
+  padding: 12px 8px;
+  font-size: 17px;
+  color: var(--texto);
+  background: transparent;
+  min-width: 0;
+}

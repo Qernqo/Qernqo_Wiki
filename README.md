@@ -22,6 +22,8 @@ Wiki interna con dos ejes:
 ```
 public/            aplicación web (HTML/CSS/JS, sin compilación)
   css/tema.css     colores del sitio (basados en saesa.cl)
+  css/*.css        estilos por sección (base, cabecera, componentes, biblioteca, papelera,
+                   generador, procedimiento y celular); index.html los carga en ese orden
   js/pdf.js        diseño del PDF (colores en la constante COLOR)
   vendor/          jsPDF, qrcode-generator, SortableJS, MiniSearch (MIT)
   assets/          logo Saesa y fuente Figtree (OFL)
