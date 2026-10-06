@@ -6,3 +6,11 @@
   position: relative;
   margin-bottom: 40px;
 }
+
+/* aviso bajo la ubicación original cuando esa categoría ya no existe */
+.nota-papelera {
+  display: block;
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--texto-suave);
+}

@@ -1,6 +1,6 @@
 // Punto de entrada: cabecera, sesión, rutas y papelera.
 import { h, icono, api, aviso, modal, confirmar, fechaHora, poner } from './util.js';
-import { estado, esAdmin, puedeEditar, cargarBiblioteca, textoRuta } from './estado.js';
+import { estado, esAdmin, puedeEditar, cargarBiblioteca, categoriasPlanas, textoRuta } from './estado.js';
 import { vistaBiblioteca } from './biblioteca.js';
 import { vistaGenerador } from './generador.js';
 import { vistaProcedimiento } from './vista.js';
@@ -119,27 +119,67 @@ async function vistaPapelera(cont) {
   const accion = async (fn, msg) => {
     try {
       const r = await fn();
-      aviso(r && r.reubicado ? `Restaurado en la categoría "${textoRuta(r.reubicado)}" porque su categoría original ya no existe` : msg);
+      if (r === null) return; // cancelado
+      aviso(typeof msg === 'function' ? msg(r) : msg);
       await cargarBiblioteca();
       vistaPapelera(cont);
     } catch (e) {
       aviso(e.message, 'error');
     }
   };
+  // Si la categoría original de un procedimiento ya no existe, se elige dónde restaurarlo.
+  const restaurar = async (e) => {
+    let categoria;
+    if (e.tipo === 'ficha' && !e.origenExiste) {
+      await cargarBiblioteca();
+      const lista = categoriasPlanas();
+      if (!lista.length) {
+        aviso('No hay categorías: crea una en la Biblioteca para restaurar el procedimiento', 'error');
+        return null;
+      }
+      const select = h(
+        'select',
+        { class: 'campo' },
+        lista.map((c) => h('option', { value: JSON.stringify(c.ruta) }, `${'\u00a0\u00a0\u00a0'.repeat(c.nivel)}${c.ruta.at(-1)}`)),
+      );
+      categoria = await modal({
+        titulo: 'Elegir dónde restaurar',
+        contenido: [
+          h('p', {}, `La categoría original de «${e.nombre}» (${textoRuta(e.origen.slice(0, -1))}) ya no existe. Elige dónde guardarlo:`),
+          h('label', { class: 'etiqueta' }, 'Categoría', select),
+        ],
+        botones: [
+          { texto: 'Cancelar', valor: null },
+          { texto: 'Restaurar aquí', submit: true, clase: 'btn-primario', accion: () => JSON.parse(select.value) },
+        ],
+      });
+      if (!categoria) return null;
+    }
+    return api('POST', `/api/papelera/${e.id}/restaurar`, { categoria });
+  };
+  const mensajeRestaurado = (r) =>
+    r.tipo === 'version'
+      ? `Versión ${r.version} restaurada en «${r.procedimiento}» (${textoRuta(r.destino)})`
+      : `Procedimiento restaurado en «${textoRuta(r.destino)}»`;
   const filas = elementos.map((e) =>
     h(
       'tr',
       {},
       h('td', {}, h('span', { class: `insignia ${e.tipo === 'ficha' ? '' : 'insignia-suave'}` }, e.tipo === 'ficha' ? 'Procedimiento' : 'Versión')),
       h('td', { class: 'fuerte' }, e.nombre),
-      h('td', {}, textoRuta(e.origen.slice(0, -1))),
+      h(
+        'td',
+        {},
+        textoRuta(e.origen.slice(0, -1)),
+        e.tipo === 'ficha' && !e.origenExiste ? h('small', { class: 'nota-papelera' }, 'Ya no existe: al restaurar se elige dónde') : null,
+      ),
       h('td', {}, `${fechaHora(e.borrado)} · ${e.usuario}`),
       h(
         'td',
         { class: 'acciones-tabla' },
         h(
           'button',
-          { class: 'btn btn-secundario btn-chico', onclick: () => accion(() => api('POST', `/api/papelera/${e.id}/restaurar`), 'Elemento restaurado') },
+          { class: 'btn btn-secundario btn-chico', onclick: () => accion(() => restaurar(e), mensajeRestaurado) },
           icono('restaurar'),
           'Restaurar',
         ),
@@ -163,7 +203,7 @@ async function vistaPapelera(cont) {
     h(
       'section',
       { class: 'hero hero-chico' },
-      h('div', { class: 'wrap' }, h('h1', {}, 'Papelera'), h('p', {}, 'Procedimientos y versiones eliminados. Puedes restaurarlos a su ubicación original.')),
+      h('div', { class: 'wrap' }, h('h1', {}, 'Papelera'), h('p', {}, 'Procedimientos y versiones eliminados. Los procedimientos vuelven a su categoría y las versiones a su procedimiento.')),
     ),
     h(
       'div',

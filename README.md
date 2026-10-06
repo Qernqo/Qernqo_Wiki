@@ -14,8 +14,8 @@ Wiki interna con dos ejes:
 | Usuario      | Rol    | Puede                                                  |
 |--------------|--------|--------------------------------------------------------|
 | (anónimo)    | —      | Ver, buscar y descargar                                |
-| `up_user`    | editor | Crear/editar fichas (nueva versión), crear/renombrar categorías, mover fichas |
-| `admin_user` | admin  | Todo lo anterior + eliminar fichas/versiones/categorías vacías, papelera |
+| `up_user`    | editor | Crear/editar fichas (nueva versión), crear, renombrar y mover categorías, mover fichas |
+| `admin_user` | admin  | Todo lo anterior + eliminar fichas/versiones, eliminar categorías sin procedimientos, papelera |
 
 ## Estructura
 

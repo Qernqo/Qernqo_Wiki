@@ -556,48 +556,61 @@ function listarPapelera() {
       }
     })
     .filter(Boolean)
+    .map((e) => (e.tipo === 'ficha' ? { ...e, origenExiste: existeCategoria(e.origen.slice(0, -1)) } : e))
     .sort((a, b) => b.borrado.localeCompare(a.borrado));
 }
 
-function restaurar(idPapelera) {
+// ¿Existe todavía la categoría donde estaba un procedimiento eliminado?
+function existeCategoria(segmentos) {
+  try {
+    dirCategoria(segmentos);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// Un procedimiento vuelve a su categoría original; si esta ya no existe, a la
+// categoría que elija el administrador (`categoria`). Una versión vuelve a su
+// mismo procedimiento, esté donde esté. Devuelve dónde quedó (`destino`).
+function restaurar(idPapelera, categoria) {
   const dir = dirPapelera(idPapelera);
   const meta = leerJson(path.join(dir, '_papelera.json'));
   const contenido = path.join(dir, 'contenido');
+  let destino;
   if (meta.tipo === 'ficha') {
     if (indice().porId.has(meta.fichaId)) falla(409, 'El procedimiento ya existe en la biblioteca');
-    let padre = meta.origen.slice(0, -1);
-    let dirPadre;
-    try {
-      dirPadre = dirCategoria(padre);
-    } catch {
-      padre = ['Restaurados'];
-      dirPadre = rutaSegura(padre);
-      fs.mkdirSync(dirPadre, { recursive: true });
-      meta.reubicado = padre;
-    }
+    const original = meta.origen.slice(0, -1);
+    if (existeCategoria(original)) destino = original;
+    else if (Array.isArray(categoria) && categoria.length) destino = categoria;
+    else falla(409, 'La categoría original ya no existe: elige dónde restaurar el procedimiento');
+    const dirPadre = dirCategoria(destino);
     fs.renameSync(contenido, path.join(dirPadre, nombreLibre(dirPadre, meta.origen.at(-1))));
   } else {
     let u;
     try {
       u = ubicar(meta.fichaId);
     } catch {
-      falla(409, 'El procedimiento original ya no existe: restáuralo primero');
+      const enPapelera = listarPapelera().some((e) => e.tipo === 'ficha' && e.fichaId === meta.fichaId);
+      falla(409, enPapelera ? 'El procedimiento de esta versión está en la papelera: restáuralo primero' : 'El procedimiento de esta versión ya no existe');
     }
     const archivo = path.join(u.dir, 'ficha.json');
     const f = leerJson(archivo);
-    const destino = path.join(u.dir, `v${meta.version}`);
-    if (fs.existsSync(destino) || f.versiones.some((v) => v.version === meta.version)) {
+    const dirVersion = path.join(u.dir, `v${meta.version}`);
+    if (fs.existsSync(dirVersion) || f.versiones.some((v) => v.version === meta.version)) {
       falla(409, `La versión ${meta.version} ya existe en el procedimiento`);
     }
-    fs.renameSync(contenido, destino);
+    fs.renameSync(contenido, dirVersion);
     f.versiones.push(meta.entrada);
     f.versiones.sort((a, b) => compararVersion(a.version, b.version));
     f.versionActual = versionMayor(f.versiones.map((v) => v.version));
     escribirJson(archivo, f);
+    destino = u.segmentos.slice(0, -1);
+    meta.procedimiento = (f.versiones.find((v) => v.version === f.versionActual) || meta.entrada).nombre;
   }
   fs.rmSync(dir, { recursive: true, force: true });
   invalidar();
-  return meta;
+  return { ...meta, destino };
 }
 
 function purgar(idPapelera) {
@@ -620,20 +633,60 @@ function crearCategoria(padre, nombre) {
   return { ruta };
 }
 
-function renombrarCategoria(ruta, nombre) {
+// Recorre las subcarpetas de una categoría: cuántos niveles de subcategorías
+// tiene (ella cuenta como 1), cuántos procedimientos y si hay otros archivos.
+function contenidoCategoria(dir) {
+  let niveles = 1;
+  let procedimientos = 0;
+  let archivos = 0;
+  for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+    if (e.name.startsWith('.')) continue;
+    const sub = path.join(dir, e.name);
+    if (!e.isDirectory()) archivos++;
+    else if (esFicha(sub)) procedimientos++;
+    else {
+      const c = contenidoCategoria(sub);
+      niveles = Math.max(niveles, c.niveles + 1);
+      procedimientos += c.procedimientos;
+      archivos += c.archivos;
+    }
+  }
+  return { niveles, procedimientos, archivos };
+}
+
+// Cambia el nombre y/o la ubicación de una categoría (con todo su contenido).
+// `padre` es la categoría de destino ([] = categoría principal); si no se
+// indica, la categoría se queda donde está.
+function editarCategoria(ruta, nombre, padre) {
   const dir = dirCategoria(ruta);
-  const nueva = [...ruta.slice(0, -1), nombreCategoria(nombre)];
+  const nuevoPadre = padre === undefined ? ruta.slice(0, -1) : padre;
+  if (!Array.isArray(nuevoPadre)) falla(400, 'Ruta inválida');
+  const dirPadre = nuevoPadre.length ? dirCategoria(nuevoPadre) : C.BIBLIOTECA;
+  if (dirPadre === dir || dirPadre.startsWith(dir + path.sep)) falla(400, 'No se puede mover una categoría dentro de sí misma');
+  const nueva = [...nuevoPadre, nombreCategoria(nombre)];
   const destino = rutaSegura(nueva);
   if (destino === dir) return { ruta: nueva };
-  if (nombreOcupado(path.dirname(dir), nueva.at(-1), ruta.at(-1))) falla(409, 'Ya existe una categoría con ese nombre');
+  if (nuevoPadre.length + contenidoCategoria(dir).niveles > C.MAX_NIVELES) {
+    falla(400, `No cabe ahí: se pasaría del máximo de ${C.MAX_NIVELES} niveles (categoría + ${C.MAX_NIVELES - 1} subniveles)`);
+  }
+  const mismoPadre = dirPadre === path.dirname(dir);
+  if (nombreOcupado(dirPadre, nueva.at(-1), mismoPadre ? ruta.at(-1) : undefined)) {
+    falla(409, `Ya existe una categoría "${nueva.at(-1)}" en ese lugar`);
+  }
   fs.renameSync(dir, destino);
   invalidar();
   return { ruta: nueva };
 }
 
+// Elimina una categoría junto con sus subcategorías, solo si en ninguna hay
+// procedimientos (ni otros archivos que se perderían).
 function eliminarCategoria(ruta) {
   const dir = dirCategoria(ruta);
-  if (fs.readdirSync(dir).some((n) => !n.startsWith('.'))) falla(409, 'La categoría no está vacía');
+  const { procedimientos, archivos } = contenidoCategoria(dir);
+  if (procedimientos) {
+    falla(409, `No se puede eliminar "${ruta.at(-1)}": contiene ${procedimientos} procedimiento${procedimientos === 1 ? '' : 's'}. Muévelos o elimínalos primero.`);
+  }
+  if (archivos) falla(409, `No se puede eliminar "${ruta.at(-1)}": contiene archivos que no son procedimientos`);
   fs.rmSync(dir, { recursive: true, force: true });
   invalidar();
 }
@@ -652,7 +705,7 @@ module.exports = {
   restaurar,
   purgar,
   crearCategoria,
-  renombrarCategoria,
+  editarCategoria,
   eliminarCategoria,
   // expuestos para pruebas
   parseVersion,

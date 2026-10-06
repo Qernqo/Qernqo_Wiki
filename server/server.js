@@ -255,8 +255,8 @@ const rutas = [
     /^\/api\/categorias$/,
     EDITOR,
     (ctx) => {
-      const r = bib.renombrarCategoria(ctx.body.ruta, ctx.body.nombre);
-      auditar(ctx.usuario.usuario, 'renombrar-categoria', { de: ctx.body.ruta, a: r.ruta });
+      const r = bib.editarCategoria(ctx.body.ruta, ctx.body.nombre, ctx.body.padre);
+      auditar(ctx.usuario.usuario, 'editar-categoria', { de: ctx.body.ruta, a: r.ruta });
       return r;
     },
   ],
@@ -279,9 +279,9 @@ const rutas = [
     /^\/api\/papelera\/([\w-]+)\/restaurar$/,
     ADMIN,
     (ctx) => {
-      const meta = bib.restaurar(ctx.p[0]);
-      auditar(ctx.usuario.usuario, 'restaurar', { tipo: meta.tipo, nombre: meta.nombre, reubicado: meta.reubicado });
-      return { ok: true, reubicado: meta.reubicado || null };
+      const meta = bib.restaurar(ctx.p[0], ctx.body.categoria);
+      auditar(ctx.usuario.usuario, 'restaurar', { tipo: meta.tipo, nombre: meta.nombre, destino: meta.destino });
+      return { ok: true, tipo: meta.tipo, version: meta.version || null, procedimiento: meta.procedimiento || null, destino: meta.destino };
     },
   ],
 

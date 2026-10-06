@@ -136,18 +136,105 @@ async function nuevaCategoria(padre) {
   ejecutar(() => api('POST', '/api/categorias', { padre, nombre }), 'Categoría creada');
 }
 
-async function renombrarCategoria(ruta) {
-  const nombre = await pedirTexto('Renombrar categoría', 'Nuevo nombre', ruta.at(-1));
-  if (!nombre || nombre === ruta.at(-1)) return;
-  ejecutar(async () => {
-    const r = await api('PUT', '/api/categorias', { ruta, nombre });
-    if (textoRuta(filtros.categoria).startsWith(textoRuta(ruta))) filtros.categoria = r.ruta;
-  }, 'Categoría renombrada');
+// ---------- categorías: editar (nombre y ubicación) y eliminar ----------
+
+// Nodo del árbol de una ruta, y medidas de su contenido.
+function buscarNodo(ruta, nodos = estado.biblioteca.arbol) {
+  for (const n of nodos) {
+    if (textoRuta(n.ruta) === textoRuta(ruta)) return n;
+    const r = buscarNodo(ruta, n.hijos);
+    if (r) return r;
+  }
+  return null;
+}
+const niveles = (n) => 1 + Math.max(0, ...n.hijos.map(niveles));
+const subcategorias = (n) => n.hijos.flatMap((x) => [x, ...subcategorias(x)]);
+const plural = (n, uno, varios) => `${n} ${n === 1 ? uno : varios}`;
+const dentroDe = (ruta, base) => textoRuta(ruta) === textoRuta(base) || textoRuta(ruta).startsWith(textoRuta(base) + ' / ');
+
+async function editarCategoria(ruta) {
+  const nodo = buscarNodo(ruta);
+  if (!nodo) return;
+  const padreActual = ruta.slice(0, -1);
+  const max = estado.biblioteca.maxNiveles;
+  const entrada = h('input', { type: 'text', class: 'campo', value: ruta.at(-1), maxlength: 80, required: true });
+  // destinos posibles: no dentro de sí misma y sin pasar el máximo de niveles
+  const destinos = [{ ruta: [], etiqueta: 'Categoría principal' }].concat(
+    categoriasPlanas()
+      .filter((c) => !dentroDe(c.ruta, ruta) && c.ruta.length + niveles(nodo) <= max)
+      .map((c) => ({ ruta: c.ruta, etiqueta: `${'\u00a0\u00a0\u00a0'.repeat(c.nivel + 1)}${c.ruta.at(-1)}` })),
+  );
+  const ubicacion = h(
+    'select',
+    { class: 'campo' },
+    destinos.map((d) => h('option', { value: JSON.stringify(d.ruta), selected: textoRuta(d.ruta) === textoRuta(padreActual) }, d.etiqueta)),
+  );
+  const r = await modal({
+    titulo: 'Editar categoría',
+    contenido: [
+      h('label', { class: 'etiqueta' }, 'Nombre', entrada),
+      h('label', { class: 'etiqueta' }, 'Ubicación', ubicacion, h('small', { class: 'ayuda' }, 'Se mueve con todas sus subcategorías y procedimientos.')),
+    ],
+    botones: [
+      { texto: 'Cancelar', valor: null },
+      { texto: 'Guardar', submit: true, clase: 'btn-primario', accion: () => (entrada.value.trim() ? { nombre: entrada.value.trim(), padre: JSON.parse(ubicacion.value) } : undefined) },
+    ],
+  });
+  if (!r) return;
+  const mueve = textoRuta(r.padre) !== textoRuta(padreActual);
+  if (!mueve && r.nombre === ruta.at(-1)) return;
+  if (mueve) {
+    const subs = subcategorias(nodo).length;
+    const detalle = [subs ? plural(subs, 'subcategoría', 'subcategorías') : '', nodo.total ? plural(nodo.total, 'procedimiento', 'procedimientos') : '']
+      .filter(Boolean)
+      .join(' y ');
+    const ok = await confirmar(
+      'Mover categoría',
+      `Se moverá «${ruta.at(-1)}» a «${r.padre.length ? textoRuta(r.padre) : 'Categoría principal'}»${detalle ? `, con ${detalle}` : ''}. ¿Continuar?`,
+      'Mover',
+    );
+    if (!ok) return;
+  }
+  ejecutar(
+    async () => {
+      const res = await api('PUT', '/api/categorias', { ruta, nombre: r.nombre, padre: r.padre });
+      // el filtro y las ramas abiertas siguen a la categoría
+      if (filtros.categoria.length && dentroDe(filtros.categoria, ruta)) filtros.categoria = [...res.ruta, ...filtros.categoria.slice(ruta.length)];
+      for (let i = 1; i < res.ruta.length; i++) expandidas.add(textoRuta(res.ruta.slice(0, i)));
+    },
+    mueve ? 'Categoría movida' : 'Categoría renombrada',
+  );
 }
 
 async function eliminarCategoria(ruta) {
-  if (!(await confirmar('Eliminar categoría', `¿Eliminar la categoría "${textoRuta(ruta)}"? Debe estar vacía.`, 'Eliminar', true))) return;
-  ejecutar(() => api('DELETE', '/api/categorias', { ruta }), 'Categoría eliminada');
+  const nodo = buscarNodo(ruta);
+  if (!nodo) return;
+  if (nodo.total) {
+    await modal({
+      titulo: 'No se puede eliminar',
+      contenido: h(
+        'p',
+        {},
+        `«${ruta.at(-1)}» contiene ${plural(nodo.total, 'procedimiento', 'procedimientos')}${nodo.hijos.length ? ' (incluidas sus subcategorías)' : ''}. Muévelos o elimínalos primero.`,
+      ),
+      botones: [{ texto: 'Entendido', valor: null, clase: 'btn-primario' }],
+    });
+    return;
+  }
+  const subs = subcategorias(nodo).map((n) => n.nombre);
+  const ok = await confirmar(
+    'Eliminar categoría',
+    subs.length
+      ? `Se eliminará «${ruta.at(-1)}» junto con sus subcategorías vacías: ${subs.join(', ')}.`
+      : `Se eliminará la categoría «${ruta.at(-1)}».`,
+    'Eliminar',
+    true,
+  );
+  if (!ok) return;
+  ejecutar(async () => {
+    await api('DELETE', '/api/categorias', { ruta });
+    if (dentroDe(filtros.categoria, ruta)) filtros.categoria = [];
+  }, 'Categoría eliminada');
 }
 
 async function moverFicha(ficha) {
@@ -262,10 +349,8 @@ function nodoArbol(n) {
     puedeEditar() && n.ruta.length < estado.biblioteca.maxNiveles
       ? h('button', { class: 'btn-icono btn-mini', title: 'Agregar subcategoría', onclick: () => nuevaCategoria(n.ruta) }, icono('mas'))
       : null,
-    puedeEditar() ? h('button', { class: 'btn-icono btn-mini', title: 'Renombrar', onclick: () => renombrarCategoria(n.ruta) }, icono('lapiz')) : null,
-    esAdmin() && n.total === 0 && !n.hijos.length
-      ? h('button', { class: 'btn-icono btn-mini peligro', title: 'Eliminar categoría vacía', onclick: () => eliminarCategoria(n.ruta) }, icono('basura'))
-      : null,
+    puedeEditar() ? h('button', { class: 'btn-icono btn-mini', title: 'Editar o mover categoría', onclick: () => editarCategoria(n.ruta) }, icono('lapiz')) : null,
+    esAdmin() ? h('button', { class: 'btn-icono btn-mini peligro', title: 'Eliminar categoría', onclick: () => eliminarCategoria(n.ruta) }, icono('basura')) : null,
   );
   return h(
     'li',
